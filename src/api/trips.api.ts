@@ -1,6 +1,6 @@
 import { apiClient } from './client';
-import { Booking, Trip, TripExpense, TripStatus } from '../types';
-import { MOCK_BOOKINGS, MOCK_TRIPS, MOCK_VEHICLES, MOCK_DRIVERS } from './mockData';
+import { Booking, Trip, TripExpense, TripStatus, Invoice } from '../types';
+import { MOCK_BOOKINGS, MOCK_TRIPS, MOCK_VEHICLES, MOCK_DRIVERS, MOCK_INVOICES } from './mockData';
 
 export const tripsApi = {
   getBookings: async (params?: { status?: string }): Promise<Booking[]> => {
@@ -32,6 +32,8 @@ export const tripsApi = {
         id: 'bk_' + Math.random().toString(36).substring(2, 7),
         bookingCode: 'BK-2026-' + Math.floor(100 + Math.random() * 900),
         tenantId: 'tenant_apex',
+        customerId: payload.customerId,
+        contractId: payload.contractId,
         customerName: payload.customerName || 'Standard Client',
         customerPhone: payload.customerPhone || '+1 (555) 012-3456',
         customerEmail: payload.customerEmail,
@@ -53,7 +55,7 @@ export const tripsApi = {
     }
   },
 
-  getTrips: async (params?: { status?: string; search?: string }): Promise<Trip[]> => {
+  getTrips: async (params?: { status?: string; search?: string; contractId?: string }): Promise<Trip[]> => {
     try {
       const response = await apiClient.get<any>('/trips/', { params });
       const raw = response.data?.data || response.data?.results || response.data;
@@ -61,6 +63,9 @@ export const tripsApi = {
         return raw;
       }
       let list = [...MOCK_TRIPS];
+      if (params?.contractId) {
+        list = list.filter((t) => t.contractId === params.contractId);
+      }
       if (params?.search) {
         const q = params.search.toLowerCase();
         list = list.filter(
@@ -79,6 +84,9 @@ export const tripsApi = {
       return list;
     } catch {
       let list = [...MOCK_TRIPS];
+      if (params?.contractId) {
+        list = list.filter((t) => t.contractId === params.contractId);
+      }
       if (params?.search) {
         const q = params.search.toLowerCase();
         list = list.filter(
@@ -119,13 +127,39 @@ export const tripsApi = {
       return response.data;
     } catch {
       const bk = MOCK_BOOKINGS.find((b) => b.id === bookingId);
-      if (bk) bk.status = 'dispatched';
-
       const veh = MOCK_VEHICLES.find((v) => v.id === vehicleId);
-      if (veh) veh.status = 'on_trip';
+
+      // Business Rule Validation 1: Vehicle Operational Status
+      if (veh && veh.status !== 'available') {
+        throw new Error(`Cannot dispatch: Vehicle ${veh.registrationNumber} is currently in ${veh.status.replace('_', ' ')} status.`);
+      }
+
+      // Business Rule Validation 2: Vehicle Compliance Documents Expiry
+      const expiredDoc = veh?.documents?.find((d) => d.isExpired || (d.expiryDate && new Date(d.expiryDate) < new Date()));
+      if (expiredDoc) {
+        throw new Error(`Compliance Restriction: Vehicle ${veh?.registrationNumber} has an expired ${expiredDoc.type.replace('_', ' ')} document. Operation prohibited until renewed.`);
+      }
 
       const resolvedDriverId = driverId || veh?.assignedDriverId;
       const drv = MOCK_DRIVERS.find((d) => d.id === resolvedDriverId);
+
+      // Business Rule Validation 3: Driver Active Trip Conflict
+      if (drv && drv.status === 'on_trip') {
+        throw new Error(`Scheduling Conflict: Driver ${drv.firstName} ${drv.lastName} is currently on an active trip.`);
+      }
+
+      // Business Rule Validation 4: Driver Leave / Suspension Status
+      if (drv && (drv.leaveStatus === 'on_leave' || drv.leaveStatus === 'sick_leave' || drv.status === 'leave')) {
+        throw new Error(`HR Restriction: Driver ${drv.firstName} ${drv.lastName} is currently on approved leave.`);
+      }
+
+      // Business Rule Validation 5: Driver CDL License Validity
+      if (drv && drv.licenseExpiryDate && new Date(drv.licenseExpiryDate) < new Date()) {
+        throw new Error(`Safety Violation: Driver ${drv.firstName} ${drv.lastName} has an expired commercial driving license.`);
+      }
+
+      if (bk) bk.status = 'dispatched';
+      if (veh) veh.status = 'on_trip';
       if (drv) drv.status = 'on_trip';
 
       const assignedDriverName = drv
@@ -139,6 +173,8 @@ export const tripsApi = {
         tripCode: 'TRP-2026-' + Math.floor(8900 + Math.random() * 1000),
         tenantId: bk?.tenantId || veh?.tenantId || 'tenant_apex',
         bookingId: bookingId,
+        customerId: bk?.customerId,
+        contractId: bk?.contractId,
         customerName: bk ? bk.customerName : 'Dispatched Customer',
         vertical: bk ? bk.vertical : (veh?.vertical || 'freight_logistics'),
         vehicleType: bk?.vehicleType || veh?.type,
@@ -179,13 +215,55 @@ export const tripsApi = {
       if (!trip) throw new Error('Trip not found');
       trip.status = status;
 
-      // If trip completed, restore vehicle and driver availability
+      // Reactive Business Logic: If trip completed, restore vehicle and driver availability and generate billing
       if (status === 'completed') {
         const veh = MOCK_VEHICLES.find((v) => v.id === trip.vehicleId);
-        if (veh) veh.status = 'available';
+        if (veh) {
+          veh.status = 'available';
+          veh.totalTripsCount = (veh.totalTripsCount || 0) + 1;
+          veh.odometerKm = (veh.odometerKm || 0) + (trip.distanceKm || 0);
+        }
 
         const drv = MOCK_DRIVERS.find((d) => d.id === trip.driverId);
-        if (drv) drv.status = 'available';
+        if (drv) {
+          drv.status = 'available';
+          drv.totalTrips = (drv.totalTrips || 0) + 1;
+        }
+
+        trip.netMargin = (trip.commercialRate || 0) - (trip.expensesTotal || 0);
+
+        // Auto-generate Billable Invoice in Accounts Receivable
+        if (!trip.invoiceId) {
+          const invId = `inv_auto_${Date.now()}`;
+          const amount = trip.commercialRate;
+          const tax = Math.round(amount * 0.08);
+          const newInv: Invoice = {
+            id: invId,
+            invoiceNumber: `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+            customerId: trip.customerId,
+            clientName: trip.customerName,
+            tripId: trip.id,
+            contractId: trip.contractId,
+            issueDate: new Date().toISOString().split('T')[0],
+            dueDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+            amount,
+            taxAmount: tax,
+            totalAmount: amount + tax,
+            balanceDue: amount + tax,
+            status: 'issued',
+            vertical: trip.vertical,
+            items: [
+              {
+                description: `Linehaul haulage billing for trip ${trip.tripCode} (${trip.origin} ➔ ${trip.destination})`,
+                quantity: 1,
+                unitPrice: amount,
+                total: amount,
+              },
+            ],
+          };
+          MOCK_INVOICES.unshift(newInv);
+          trip.invoiceId = invId;
+        }
       }
 
       trip.timeline.push({

@@ -8,10 +8,11 @@ import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
 import { Textarea } from '../../components/common/Textarea';
 import { Modal } from '../../components/common/Modal';
-import { Vehicle, VehicleDocument, Driver, MaintenanceRecord, MaintenanceType, WorkOrderStatus } from '../../types';
+import { Vehicle, VehicleDocument, Driver, MaintenanceRecord, MaintenanceType, WorkOrderStatus, Trip, TripExpense } from '../../types';
 import { fleetApi } from '../../api/fleet.api';
 import { driversApi } from '../../api/drivers.api';
 import { maintenanceApi } from '../../api/maintenance.api';
+import { tripsApi } from '../../api/trips.api';
 import {
   Truck,
   FileCheck,
@@ -43,6 +44,17 @@ import {
   Info,
   Check,
   X,
+  TrendingUp,
+  Droplets,
+  CircleDot,
+  Zap,
+  ChevronDown,
+  ChevronUp,
+  Percent,
+  Receipt,
+  Coins,
+  Disc,
+  Wind,
 } from 'lucide-react';
 import { formatDate, formatCurrency } from '../../lib/utils';
 
@@ -157,6 +169,90 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
     queryKey: ['maintenanceRecords'],
     queryFn: () => maintenanceApi.getRecords(),
   });
+
+  // Query all trips to calculate margins, fuel costs, and trip expenses
+  const { data: allTrips = [] } = useQuery({
+    queryKey: ['trips'],
+    queryFn: () => tripsApi.getTrips(),
+  });
+
+  // Expanded trip details state
+  const [expandedTripId, setExpandedTripId] = useState<string | null>(null);
+
+  // Maintenance preset helper state
+  const [servicePreset, setServicePreset] = useState<string>('custom');
+
+  // Filter trips for this vehicle
+  const vehicleTrips = useMemo(() => {
+    if (!currentVehicle) return [];
+    const matched = allTrips.filter(
+      (t) => t.vehicleId === currentVehicle.id || t.vehicleReg === currentVehicle.registrationNumber
+    );
+    return matched;
+  }, [allTrips, currentVehicle]);
+
+  // Aggregate trip economics, fuel expenses, and margins for this vehicle
+  const tripEconomics = useMemo(() => {
+    const tripsCount = vehicleTrips.length;
+    const totalRevenue = vehicleTrips.reduce((sum, t) => sum + (t.commercialRate || 0), 0);
+    const totalExpenses = vehicleTrips.reduce((sum, t) => sum + (t.expensesTotal || 0), 0);
+    const netMargin = totalRevenue - totalExpenses;
+    const marginPercent = totalRevenue > 0 ? (netMargin / totalRevenue) * 100 : 0;
+
+    const totalFuelExpense = vehicleTrips.reduce(
+      (sum, t) =>
+        sum +
+        (t.expenses || [])
+          .filter((e) => e.category === 'fuel')
+          .reduce((es, e) => es + e.amount, 0),
+      0
+    );
+
+    const totalFuelLitres = vehicleTrips.reduce(
+      (sum, t) =>
+        sum +
+        (t.expenses || [])
+          .filter((e) => e.category === 'fuel')
+          .reduce((es, e) => es + (e.fuelLitres || Math.round(e.amount / 1.25)), 0),
+      0
+    );
+
+    const totalTollExpense = vehicleTrips.reduce(
+      (sum, t) =>
+        sum +
+        (t.expenses || [])
+          .filter((e) => e.category === 'toll')
+          .reduce((es, e) => es + e.amount, 0),
+      0
+    );
+
+    const totalDriverAllowance = vehicleTrips.reduce(
+      (sum, t) =>
+        sum +
+        (t.expenses || [])
+          .filter((e) => e.category === 'driver_allowance')
+          .reduce((es, e) => es + e.amount, 0),
+      0
+    );
+
+    const totalOtherExpenses = Math.max(
+      0,
+      totalExpenses - totalFuelExpense - totalTollExpense - totalDriverAllowance
+    );
+
+    return {
+      tripsCount,
+      totalRevenue,
+      totalExpenses,
+      netMargin,
+      marginPercent,
+      totalFuelExpense,
+      totalFuelLitres,
+      totalTollExpense,
+      totalDriverAllowance,
+      totalOtherExpenses,
+    };
+  }, [vehicleTrips]);
 
   // Check if current vehicle is actively on a drive/trip
   const isVehicleOnTrip = currentVehicle?.status === 'on_trip';
@@ -463,13 +559,13 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
     },
     {
       id: 'trips',
-      label: 'Trips',
+      label: 'Trips & Margins',
       icon: <Navigation className="h-3.5 w-3.5" />,
-      count: currentVehicle.totalTripsCount,
+      count: vehicleTrips.length,
     },
     {
       id: 'maintenance',
-      label: 'Maintenance',
+      label: 'Service & Consumables',
       icon: <Wrench className="h-3.5 w-3.5" />,
       count: vehicleMaintenanceRecords.length,
     },
@@ -520,9 +616,9 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
           {activeTab === 'overview' && (
             <div className="space-y-5 text-xs">
               {/* Telemetry quick bar */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-3">
-                  <span className="text-slate-400 block text-[11px]">Vehicle Status</span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-2.5">
+                  <span className="text-slate-400 block text-[10px]">Vehicle Status</span>
                   <Badge
                     variant={
                       currentVehicle.status === 'available'
@@ -541,17 +637,17 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
                   </Badge>
                 </div>
 
-                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-3">
-                  <span className="text-slate-400 block text-[11px]">Total KM Run (Odometer)</span>
-                  <span className="text-base font-bold text-white font-mono mt-0.5 block">
+                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-2.5">
+                  <span className="text-slate-400 block text-[10px]">Odometer Total</span>
+                  <span className="text-sm font-bold text-white font-mono mt-0.5 block">
                     {currentVehicle.odometerKm.toLocaleString()} km
                   </span>
                 </div>
 
-                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-3">
-                  <span className="text-slate-400 block text-[11px]">Fuel / Energy Level</span>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-base font-bold text-emerald-400 font-mono">
+                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-2.5">
+                  <span className="text-slate-400 block text-[10px]">Fuel Level</span>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-sm font-bold text-emerald-400 font-mono">
                       {currentVehicle.fuelLevelPercent}%
                     </span>
                     <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
@@ -563,13 +659,46 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-3">
-                  <span className="text-slate-400 block text-[11px]">Gross Payload Capacity</span>
-                  <span className="text-base font-bold text-slate-200 mt-0.5 block">
-                    {currentVehicle.capacityKg
-                      ? `${(currentVehicle.capacityKg / 1000).toFixed(1)} Tons (${currentVehicle.capacityKg.toLocaleString()} kg)`
-                      : '25.0 Tons'}
+                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-2.5">
+                  <span className="text-slate-400 block text-[10px]">Avg Fuel Consumption</span>
+                  <span className="text-sm font-bold text-blue-400 font-mono mt-0.5 block">
+                    {currentVehicle.fuelConsumptionL100km || 28.4} L/100km
                   </span>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    {formatCurrency(currentVehicle.fuelCostPerKm || 0.35)}/km
+                  </span>
+                </div>
+
+                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-2.5">
+                  <span className="text-slate-400 block text-[10px]">AdBlue / DEF Level</span>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-sm font-bold text-cyan-400 font-mono">
+                      {currentVehicle.adBlueLevelPercent || 82}%
+                    </span>
+                    <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                      <div
+                        className="h-full bg-cyan-500 rounded-full"
+                        style={{ width: `${currentVehicle.adBlueLevelPercent || 82}%` }}
+                      />
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-slate-500">Fluid Tank OK</span>
+                </div>
+
+                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-2.5">
+                  <span className="text-slate-400 block text-[10px]">Engine Oil Life</span>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-sm font-bold text-amber-400 font-mono">
+                      {currentVehicle.engineOilLifePercent || 76}%
+                    </span>
+                    <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                      <div
+                        className="h-full bg-amber-500 rounded-full"
+                        style={{ width: `${currentVehicle.engineOilLifePercent || 76}%` }}
+                      />
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-mono">15W-40 Synthetic</span>
                 </div>
               </div>
 
@@ -1133,172 +1262,800 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
           )}
 
           {/* ========================================================================= */}
-          {/* TAB 4: TRIPS                                                              */}
+          {/* TAB 4: TRIPS & OPERATING MARGINS                                          */}
           {/* ========================================================================= */}
           {activeTab === 'trips' && (
-            <div className="space-y-3 text-xs">
-              <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-                <p className="text-slate-400">
-                  Recent linehaul voyages and assigned freight manifests for {currentVehicle.registrationNumber}.
-                </p>
+            <div className="space-y-4 text-xs">
+              {/* Financial telemetry summary strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 text-[11px]">Gross Revenue</span>
+                    <DollarSign className="h-3.5 w-3.5 text-emerald-400" />
+                  </div>
+                  <span className="text-base font-bold text-white font-mono mt-1 block">
+                    {formatCurrency(tripEconomics.totalRevenue)}
+                  </span>
+                  <span className="text-[10px] text-slate-500">
+                    {tripEconomics.tripsCount} commercial voyage manifests
+                  </span>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 text-[11px]">Total Trip Expenses</span>
+                    <Receipt className="h-3.5 w-3.5 text-rose-400" />
+                  </div>
+                  <span className="text-base font-bold text-rose-300 font-mono mt-1 block">
+                    {formatCurrency(tripEconomics.totalExpenses)}
+                  </span>
+                  <span className="text-[10px] text-slate-500">
+                    Fuel: {formatCurrency(tripEconomics.totalFuelExpense)} ({tripEconomics.totalExpenses > 0 ? ((tripEconomics.totalFuelExpense / tripEconomics.totalExpenses) * 100).toFixed(0) : 0}%)
+                  </span>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 text-[11px]">Net Operating Margin</span>
+                    <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+                  </div>
+                  <span className="text-base font-bold text-emerald-400 font-mono mt-1 block">
+                    +{formatCurrency(tripEconomics.netMargin)}
+                  </span>
+                  <span className="text-[10px] font-semibold text-emerald-400/90 flex items-center gap-1">
+                    <Percent className="h-3 w-3 inline" />
+                    {tripEconomics.marginPercent.toFixed(1)}% profit margin
+                  </span>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 text-[11px]">Fuel Incurred on Trips</span>
+                    <Fuel className="h-3.5 w-3.5 text-blue-400" />
+                  </div>
+                  <span className="text-base font-bold text-blue-400 font-mono mt-1 block">
+                    {formatCurrency(tripEconomics.totalFuelExpense)}
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    ~{tripEconomics.totalFuelLitres.toLocaleString()} Litres burned
+                  </span>
+                </div>
+              </div>
+
+              {/* Trip Cards Header */}
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <div>
+                  <span className="font-semibold text-slate-200 text-sm">Linehaul Trips & Financial Economics</span>
+                  <p className="text-[11px] text-slate-400">
+                    Commercial rate, fuel expenses, tolls, crew allowances, and net margin for {currentVehicle.registrationNumber}.
+                  </p>
+                </div>
                 <Badge variant="outline" className="font-mono">
-                  {currentVehicle.totalTripsCount} Completed
+                  {vehicleTrips.length} Recorded Trips
                 </Badge>
               </div>
 
-              <div className="space-y-2">
-                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-3 flex justify-between items-center">
-                  <div>
-                    <span className="font-semibold text-white block">TRP-2026-8801</span>
-                    <span className="text-slate-400 text-[11px]">Abbott Park, IL ➔ St. Louis, MO</span>
-                  </div>
-                  <Badge variant="info">In Transit</Badge>
-                </div>
-
-                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-3 flex justify-between items-center">
-                  <div>
-                    <span className="font-semibold text-white block">TRP-2026-8794</span>
-                    <span className="text-slate-400 text-[11px]">Detroit, MI ➔ Chicago, IL</span>
-                  </div>
-                  <Badge variant="success">Delivered</Badge>
-                </div>
-
-                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-3 flex justify-between items-center">
-                  <div>
-                    <span className="font-semibold text-white block">TRP-2026-8650</span>
-                    <span className="text-slate-400 text-[11px]">Indianapolis, IN ➔ Green Bay, WI</span>
-                  </div>
-                  <Badge variant="success">Delivered</Badge>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ========================================================================= */}
-          {/* TAB 5: MAINTENANCE (FUNCTIONAL LOG SERVICE)                               */}
-          {/* ========================================================================= */}
-          {activeTab === 'maintenance' && (
-            <div className="space-y-3 text-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800">
-                <div>
-                  <span className="font-semibold text-slate-200">Scheduled Service & Work Orders</span>
-                  <p className="text-slate-400 text-[11px]">
-                    Next Scheduled Interval:{' '}
-                    <span className="font-mono font-medium text-blue-400">
-                      {currentVehicle.nextServiceKm
-                        ? `${currentVehicle.nextServiceKm.toLocaleString()} km`
-                        : `${((currentVehicle.odometerKm || 0) + 15000).toLocaleString()} km`}
-                    </span>
+              {vehicleTrips.length === 0 ? (
+                <div className="py-8 text-center rounded-xl border border-dashed border-slate-800 p-6">
+                  <Navigation className="h-8 w-8 text-slate-600 mx-auto mb-2" />
+                  <p className="text-slate-400 font-medium">No trip records found for this asset.</p>
+                  <p className="text-slate-500 text-[11px] mt-1">
+                    Dispatch this vehicle on bookings or trips to log live expenses and margins.
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  leftIcon={<Wrench className="h-3.5 w-3.5" />}
-                  onClick={() => setIsMaintModalOpen(true)}
-                >
-                  Log Service
-                </Button>
-              </div>
-
-              {vehicleMaintenanceRecords.length === 0 ? (
-                <div className="py-8 text-center rounded-xl border border-dashed border-slate-800 p-6">
-                  <Wrench className="h-8 w-8 text-slate-600 mx-auto mb-2" />
-                  <p className="text-slate-400">No maintenance service records found for this vehicle.</p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="mt-3"
-                    onClick={() => setIsMaintModalOpen(true)}
-                  >
-                    Log First Service
-                  </Button>
-                </div>
               ) : (
-                <div className="space-y-2.5">
-                  {vehicleMaintenanceRecords.map((m) => (
-                    <div
-                      key={m.id}
-                      className="rounded-lg border border-slate-800 bg-[#141c2e] p-3.5 space-y-2"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="font-mono text-[10px]">
-                            {m.recordCode}
-                          </Badge>
-                          <Badge
-                            variant={
-                              m.type === 'preventive'
-                                ? 'success'
-                                : m.type === 'breakdown'
-                                ? 'danger'
-                                : 'warning'
-                            }
-                            size="sm"
-                            className="capitalize"
-                          >
-                            {m.type}
-                          </Badge>
+                <div className="space-y-3">
+                  {vehicleTrips.map((trip) => {
+                    const fuelExp = trip.expenses?.find((e) => e.category === 'fuel');
+                    const tollExp = trip.expenses?.find((e) => e.category === 'toll');
+                    const allowExp = trip.expenses?.find((e) => e.category === 'driver_allowance');
+                    const otherExps = trip.expenses?.filter(
+                      (e) => !['fuel', 'toll', 'driver_allowance'].includes(e.category)
+                    ) || [];
+                    const otherExpAmount = otherExps.reduce((s, e) => s + e.amount, 0);
+
+                    const tripMargin = (trip.commercialRate || 0) - (trip.expensesTotal || 0);
+                    const tripMarginPct = trip.commercialRate > 0 ? (tripMargin / trip.commercialRate) * 100 : 0;
+                    const costPerKm = trip.distanceKm > 0 ? (trip.expensesTotal / trip.distanceKm) : 0;
+                    const isExpanded = expandedTripId === trip.id;
+
+                    return (
+                      <div
+                        key={trip.id}
+                        className="rounded-xl border border-slate-800 bg-[#141c2e] overflow-hidden hover:border-slate-700 transition-colors"
+                      >
+                        {/* Trip Summary Row */}
+                        <div className="p-3.5 space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-white font-mono text-xs">{trip.tripCode}</span>
+                              <Badge
+                                variant={
+                                  trip.status === 'in_transit'
+                                    ? 'info'
+                                    : trip.status === 'completed'
+                                    ? 'success'
+                                    : trip.status === 'dispatched'
+                                    ? 'purple'
+                                    : 'warning'
+                                }
+                                size="sm"
+                                dot={trip.status === 'in_transit'}
+                              >
+                                {trip.status.replace('_', ' ')}
+                              </Badge>
+                              <span className="text-slate-400 text-[11px] font-medium truncate max-w-[180px]">
+                                • {trip.customerName}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                              <span className="font-mono">{trip.distanceKm} km</span>
+                              <span>•</span>
+                              <span>Driver: <strong className="text-slate-200">{trip.driverName}</strong></span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-slate-300 font-medium">
+                            <MapPin className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                            <span>{trip.origin}</span>
+                            <ArrowRight className="h-3 w-3 text-slate-500 shrink-0" />
+                            <span>{trip.destination}</span>
+                          </div>
+
+                          {/* Financial Economics Strip */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2.5 border-t border-slate-800/80">
+                            <div className="p-2 rounded-lg bg-slate-900/70 border border-slate-800/80">
+                              <span className="text-slate-500 block text-[10px] uppercase font-semibold">Commercial Billing</span>
+                              <span className="text-sm font-bold text-white font-mono mt-0.5 block">
+                                {formatCurrency(trip.commercialRate)}
+                              </span>
+                            </div>
+
+                            <div className="p-2 rounded-lg bg-slate-900/70 border border-slate-800/80">
+                              <span className="text-slate-500 block text-[10px] uppercase font-semibold">Trip Expenses</span>
+                              <span className="text-sm font-bold text-rose-300 font-mono mt-0.5 block">
+                                {formatCurrency(trip.expensesTotal)}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                {formatCurrency(costPerKm)}/km
+                              </span>
+                            </div>
+
+                            <div className="p-2 rounded-lg bg-slate-900/70 border border-slate-800/80">
+                              <span className="text-slate-500 block text-[10px] uppercase font-semibold">Net Profit Margin</span>
+                              <span className="text-sm font-bold text-emerald-400 font-mono mt-0.5 block">
+                                +{formatCurrency(tripMargin)}
+                              </span>
+                              <span className="text-[10px] text-emerald-400/90 font-medium">
+                                {tripMarginPct.toFixed(1)}% margin
+                              </span>
+                            </div>
+
+                            <div className="p-2 rounded-lg bg-slate-900/70 border border-slate-800/80 flex items-center justify-between">
+                              <div>
+                                <span className="text-slate-500 block text-[10px] uppercase font-semibold">Fuel Incurred</span>
+                                <span className="text-sm font-bold text-blue-400 font-mono mt-0.5 block">
+                                  {formatCurrency(fuelExp?.amount || 0)}
+                                </span>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-slate-400 hover:text-white h-7 px-2 text-[11px]"
+                                onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}
+                              >
+                                {isExpanded ? (
+                                  <>Less <ChevronUp className="h-3 w-3 ml-1" /></>
+                                ) : (
+                                  <>Breakdown <ChevronDown className="h-3 w-3 ml-1" /></>
+                                )}
+                              </Button>
+                            </div>
+                          </div>
                         </div>
-                        <span className="text-emerald-400 font-bold font-mono">
-                          {formatCurrency(m.totalCost)}
-                        </span>
-                      </div>
 
-                      <div>
-                        <h5 className="font-semibold text-white text-sm">{m.issueDescription}</h5>
-                        {m.actionTaken && (
-                          <p className="text-slate-400 text-[11px] mt-0.5">{m.actionTaken}</p>
+                        {/* Collapsible Itemized Cost & Consumables Breakdown */}
+                        {isExpanded && (
+                          <div className="p-3.5 bg-slate-900/90 border-t border-slate-800 space-y-3 animate-in fade-in">
+                            <span className="text-slate-400 text-[11px] font-semibold uppercase tracking-wider block">
+                              Itemized Operating Costs & Fuel Consumption
+                            </span>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+                              <div className="p-2.5 rounded-lg border border-blue-500/20 bg-blue-950/20 space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-blue-300 font-semibold flex items-center gap-1.5">
+                                    <Fuel className="h-3.5 w-3.5 text-blue-400" />
+                                    Fuel Expense
+                                  </span>
+                                  <span className="font-mono font-bold text-white text-xs">
+                                    {formatCurrency(fuelExp?.amount || 0)}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-400">
+                                  {fuelExp?.fuelLitres || Math.round(trip.distanceKm * 0.28)} L pumped • ${fuelExp?.fuelPricePerLitre || 1.25}/L
+                                </p>
+                                {fuelExp?.note && (
+                                  <p className="text-[10px] text-slate-500 italic truncate" title={fuelExp.note}>
+                                    {fuelExp.note}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="p-2.5 rounded-lg border border-purple-500/20 bg-purple-950/20 space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-purple-300 font-semibold flex items-center gap-1.5">
+                                    <Receipt className="h-3.5 w-3.5 text-purple-400" />
+                                    Highway Tolls
+                                  </span>
+                                  <span className="font-mono font-bold text-white text-xs">
+                                    {formatCurrency(tollExp?.amount || 0)}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-400">Electronic pass & expressway fees</p>
+                                {tollExp?.note && (
+                                  <p className="text-[10px] text-slate-500 italic truncate" title={tollExp.note}>
+                                    {tollExp.note}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="p-2.5 rounded-lg border border-amber-500/20 bg-amber-950/20 space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-amber-300 font-semibold flex items-center gap-1.5">
+                                    <User className="h-3.5 w-3.5 text-amber-400" />
+                                    Driver Allowance
+                                  </span>
+                                  <span className="font-mono font-bold text-white text-xs">
+                                    {formatCurrency(allowExp?.amount || 0)}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-400">Linehaul per-diem & trip stipend</p>
+                                {allowExp?.note && (
+                                  <p className="text-[10px] text-slate-500 italic truncate" title={allowExp.note}>
+                                    {allowExp.note}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="p-2.5 rounded-lg border border-slate-700/60 bg-slate-800/40 space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-300 font-semibold flex items-center gap-1.5">
+                                    <Wrench className="h-3.5 w-3.5 text-slate-400" />
+                                    Vehicle / Handling
+                                  </span>
+                                  <span className="font-mono font-bold text-white text-xs">
+                                    {formatCurrency(otherExpAmount)}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-400">Loading, AdBlue top-up, staging</p>
+                                {otherExps[0]?.note && (
+                                  <p className="text-[10px] text-slate-500 italic truncate" title={otherExps[0].note}>
+                                    {otherExps[0].note}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         )}
                       </div>
-
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-2 border-t border-slate-800/80 text-[11px] text-slate-400">
-                        <span>Reported: {formatDate(m.reportedDate)}</span>
-                        <span>•</span>
-                        <span>Odometer: {m.odometerAtService.toLocaleString()} km</span>
-                        <span>•</span>
-                        <span>Workshop: {m.workshopName}</span>
-                        {m.technicianName && (
-                          <>
-                            <span>•</span>
-                            <span>Tech: {m.technicianName}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
           )}
 
           {/* ========================================================================= */}
-          {/* TAB 6: FUEL & TELEMATICS                                                  */}
+          {/* TAB 5: REGULAR SERVICE, CONSUMABLES & WORKSHOP                             */}
+          {/* ========================================================================= */}
+          {activeTab === 'maintenance' && (
+            <div className="space-y-4 text-xs">
+              {/* Consumables & Wear Tracker Hub */}
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800">
+                  <div>
+                    <span className="font-semibold text-white text-sm">
+                      Consumables, Fluids & Wear-and-Tear Lifecycle
+                    </span>
+                    <p className="text-slate-400 text-[11px]">
+                      Mandated regular service items: engine oil, oil & air filtration, AdBlue/DEF, tyre wear, and brakes.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    leftIcon={<Wrench className="h-3.5 w-3.5" />}
+                    onClick={() => setIsMaintModalOpen(true)}
+                  >
+                    Log Service / Maintenance
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {/* Card 1: Engine Oil Service */}
+                  <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Droplets className="h-4 w-4 text-amber-400" />
+                        <span className="font-semibold text-white">Engine Oil Service</span>
+                      </div>
+                      <Badge variant="warning" size="sm">
+                        {currentVehicle.engineOilLifePercent || 76}% Life Remaining
+                      </Badge>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                      <div
+                        className="h-full bg-amber-400 rounded-full"
+                        style={{ width: `${currentVehicle.engineOilLifePercent || 76}%` }}
+                      />
+                    </div>
+                    <div className="space-y-1 text-[11px] text-slate-400">
+                      <div className="flex justify-between">
+                        <span>Oil Grade & Viscosity:</span>
+                        <strong className="text-slate-200">15W-40 Synthetic Heavy Duty</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Crankcase Sump Capacity:</span>
+                        <strong className="text-slate-200">36.0 Litres (~$220 fill)</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Next Oil Flush Due:</span>
+                        <strong className="text-blue-400 font-mono">
+                          {((currentVehicle.odometerKm || 0) + 6800).toLocaleString()} km
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Oil & Air Filters */}
+                  <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Disc className="h-4 w-4 text-emerald-400" />
+                        <span className="font-semibold text-white">Oil & Air Filtration</span>
+                      </div>
+                      <Badge variant="success" size="sm">Clean & Certified</Badge>
+                    </div>
+                    <div className="space-y-2 text-[11px]">
+                      <div className="p-2 rounded-lg bg-slate-900/60 border border-slate-800/80 flex justify-between items-center">
+                        <div>
+                          <span className="font-medium text-slate-200 block">Full-Flow Spin-On Oil Filter</span>
+                          <span className="text-slate-500 text-[10px]">Replaced with oil flush • ~$45</span>
+                        </div>
+                        <Badge variant="outline" size="sm" className="text-emerald-400 border-emerald-500/30">
+                          {currentVehicle.oilFilterStatus === 'replace_due' ? 'Replace Due' : 'Good'}
+                        </Badge>
+                      </div>
+                      <div className="p-2 rounded-lg bg-slate-900/60 border border-slate-800/80 flex justify-between items-center">
+                        <div>
+                          <span className="font-medium text-slate-200 block">Heavy Duty Dual Air Filter</span>
+                          <span className="text-slate-500 text-[10px]">Intake restriction: 1.8 kPa • ~$85</span>
+                        </div>
+                        <Badge variant="outline" size="sm" className="text-emerald-400 border-emerald-500/30">
+                          {currentVehicle.airFilterStatus === 'replace_due' ? 'Replace Due' : 'Clean'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 3: AdBlue / DEF Fluid */}
+                  <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-cyan-400" />
+                        <span className="font-semibold text-white">AdBlue / DEF Fluid</span>
+                      </div>
+                      <Badge variant="glow" size="sm">
+                        {currentVehicle.adBlueLevelPercent || 82}% Full
+                      </Badge>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                      <div
+                        className="h-full bg-cyan-400 rounded-full"
+                        style={{ width: `${currentVehicle.adBlueLevelPercent || 82}%` }}
+                      />
+                    </div>
+                    <div className="space-y-1 text-[11px] text-slate-400">
+                      <div className="flex justify-between">
+                        <span>DEF Reservoir Level:</span>
+                        <strong className="text-slate-200 font-mono">
+                          {Math.round((currentVehicle.adBlueLevelPercent || 82) * 0.75)} L / 75 L Tank
+                        </strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Consumption Rate:</span>
+                        <strong className="text-slate-200 font-mono">1.35 L / 100 km (~4.7% ratio)</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Cruising Range Remaining:</span>
+                        <strong className="text-cyan-400 font-mono">~4,600 km</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 4: Tyre Wear & Years in Service */}
+                  <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CircleDot className="h-4 w-4 text-blue-400" />
+                        <span className="font-semibold text-white">Tyre Wear & Age</span>
+                      </div>
+                      <Badge variant="outline" size="sm">
+                        {currentVehicle.tyreHealthPercent || 84}% Tread Health
+                      </Badge>
+                    </div>
+                    <div className="space-y-1 text-[11px] text-slate-400">
+                      <div className="flex justify-between">
+                        <span>Steer Axle Tread Depth:</span>
+                        <strong className="text-emerald-400 font-mono">
+                          {currentVehicle.tyreTreadDepthMm || 8.2} mm (Min: 2.0 mm)
+                        </strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Drive Tandem Tread:</span>
+                        <strong className="text-slate-200 font-mono">7.4 mm • 7.1 mm</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Service Age (Years/Months):</span>
+                        <strong className="text-slate-200 font-mono">
+                          {currentVehicle.tyreYearsInService || 1.8} Years (Batch 4124)
+                        </strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Next Tyre Rotation Due:</span>
+                        <strong className="text-blue-400 font-mono">In ~3,800 km</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 5: Brake Linings & Wear Consumables */}
+                  <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-purple-400" />
+                        <span className="font-semibold text-white">Brakes & Wearables</span>
+                      </div>
+                      <Badge variant="purple" size="sm">
+                        {currentVehicle.brakePadLifePercent || 78}% Life
+                      </Badge>
+                    </div>
+                    <div className="space-y-1 text-[11px] text-slate-400">
+                      <div className="flex justify-between">
+                        <span>Air Disc Brake Linings:</span>
+                        <strong className="text-slate-200 font-mono">9.4 mm (Safe threshold)</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Coolant / Antifreeze:</span>
+                        <strong className="text-emerald-400">-38°C Protection (pH 8.4)</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Transmission Fluid:</span>
+                        <strong className="text-slate-200">Inspected / Viscosity Valid</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 6: Quick Cost Estimate for Major Service */}
+                  <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3.5 space-y-2.5 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Coins className="h-4 w-4 text-emerald-400" />
+                          <span className="font-semibold text-white">Estimated Service Cost</span>
+                        </div>
+                        <span className="text-slate-400 text-[10px]">OEM Benchmark</span>
+                      </div>
+                      <div className="mt-2 space-y-1 text-[11px] text-slate-400">
+                        <div className="flex justify-between">
+                          <span>Full Consumables Flush:</span>
+                          <strong className="text-white font-mono">~$950 (Parts & Labor)</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>10-Wheel Full Tyre Set:</span>
+                          <strong className="text-white font-mono">~$4,200</strong>
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full mt-2"
+                      onClick={() => setIsMaintModalOpen(true)}
+                    >
+                      Record Consumable Refill
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Maintenance Work Orders History */}
+              <div className="space-y-3 pt-3 border-t border-slate-800">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-semibold text-slate-200 text-sm">Historical Work Orders & Service Invoices</h5>
+                  <span className="text-slate-500 text-[11px]">
+                    Next Interval:{' '}
+                    <strong className="text-blue-400 font-mono">
+                      {currentVehicle.nextServiceKm ? `${currentVehicle.nextServiceKm.toLocaleString()} km` : 'Scheduled'}
+                    </strong>
+                  </span>
+                </div>
+
+                {vehicleMaintenanceRecords.length === 0 ? (
+                  <div className="py-8 text-center rounded-xl border border-dashed border-slate-800 p-6">
+                    <Wrench className="h-8 w-8 text-slate-600 mx-auto mb-2" />
+                    <p className="text-slate-400">No maintenance service records found for this vehicle.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {vehicleMaintenanceRecords.map((m) => (
+                      <div
+                        key={m.id}
+                        className="rounded-lg border border-slate-800 bg-[#141c2e] p-3.5 space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="font-mono text-[10px]">
+                              {m.recordCode}
+                            </Badge>
+                            <Badge
+                              variant={
+                                m.type === 'preventive'
+                                  ? 'success'
+                                  : m.type === 'breakdown'
+                                  ? 'danger'
+                                  : 'warning'
+                              }
+                              size="sm"
+                              className="capitalize"
+                            >
+                              {m.type}
+                            </Badge>
+                          </div>
+                          <span className="text-emerald-400 font-bold font-mono">
+                            {formatCurrency(m.totalCost)}
+                          </span>
+                        </div>
+
+                        <div>
+                          <h5 className="font-semibold text-white text-sm">{m.issueDescription}</h5>
+                          {m.actionTaken && (
+                            <p className="text-slate-400 text-[11px] mt-0.5">{m.actionTaken}</p>
+                          )}
+                        </div>
+
+                        {/* Parts consumed badges */}
+                        {m.partsConsumed && m.partsConsumed.length > 0 && (
+                          <div className="pt-2 border-t border-slate-800/60 space-y-1">
+                            <span className="text-slate-500 text-[10px] uppercase font-semibold block">Consumables Replaced:</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {m.partsConsumed.map((part, pIdx) => (
+                                <span
+                                  key={pIdx}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] text-slate-300 font-mono"
+                                >
+                                  {part.partName} ({part.quantity}x • {formatCurrency(part.unitCost)})
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-2 border-t border-slate-800/80 text-[11px] text-slate-400">
+                          <span>Reported: {formatDate(m.reportedDate)}</span>
+                          <span>•</span>
+                          <span>Odometer: {m.odometerAtService.toLocaleString()} km</span>
+                          <span>•</span>
+                          <span>Workshop: {m.workshopName}</span>
+                          {m.technicianName && (
+                            <>
+                              <span>•</span>
+                              <span>Tech: {m.technicianName}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* TAB 6: FUEL CONSUMPTION & COST ANALYTICS                                  */}
           {/* ========================================================================= */}
           {activeTab === 'fuel' && (
-            <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-3">
-                  <span className="text-slate-400 block text-[11px]">Propulsion Fuel Type</span>
-                  <span className="font-bold text-white uppercase text-sm mt-0.5 block">
-                    {FUEL_TYPE_LABELS[currentVehicle.fuelType] || currentVehicle.fuelType}
-                  </span>
+            <div className="space-y-4 text-xs">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <div>
+                  <h4 className="font-semibold text-white text-sm">Fuel Consumption & Operating Cost Telematics</h4>
+                  <p className="text-slate-400 text-[11px]">
+                    Real-time tank level, average fuel burn rate, idling loss, AdBlue ratio, and fuel expense analytics.
+                  </p>
                 </div>
-                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-3">
-                  <span className="text-slate-400 block text-[11px]">Current Fuel Tank Level</span>
-                  <span className="font-bold text-emerald-400 font-mono text-sm mt-0.5 block">
-                    {currentVehicle.fuelLevelPercent}% Capacity
-                  </span>
+                <Badge variant="outline" className="font-mono uppercase">
+                  {FUEL_TYPE_LABELS[currentVehicle.fuelType] || currentVehicle.fuelType}
+                </Badge>
+              </div>
+
+              {/* Fuel Consumption Metrics */}
+              <div>
+                <span className="text-slate-400 text-[11px] uppercase font-semibold tracking-wider block mb-2">
+                  Fuel Consumption Telemetry
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px]">Avg Fuel Consumption</span>
+                      <Fuel className="h-4 w-4 text-blue-400" />
+                    </div>
+                    <span className="text-xl font-bold font-mono text-white block">
+                      {currentVehicle.fuelConsumptionL100km || 28.4} L / 100 km
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      Empty: 24.2 L • Loaded 24T: 32.6 L
+                    </span>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px]">Engine Idling Burn</span>
+                      <Clock className="h-4 w-4 text-amber-400" />
+                    </div>
+                    <span className="text-xl font-bold font-mono text-amber-300 block">
+                      1.8 L / Hour
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      38.5 L idle burn this month (~$48)
+                    </span>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px]">AdBlue / DEF Ratio</span>
+                      <Zap className="h-4 w-4 text-cyan-400" />
+                    </div>
+                    <span className="text-xl font-bold font-mono text-cyan-300 block">
+                      1.35 L / 100 km
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      4.7% DEF-to-Diesel consumption ratio
+                    </span>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px]">Eco-Driving Score</span>
+                      <Activity className="h-4 w-4 text-emerald-400" />
+                    </div>
+                    <span className="text-xl font-bold font-mono text-emerald-400 block">
+                      94 / 100
+                    </span>
+                    <span className="text-[10px] text-emerald-400/90">
+                      Optimal cruise & gentle throttle
+                    </span>
+                  </div>
                 </div>
-                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-3">
-                  <span className="text-slate-400 block text-[11px]">Average Efficiency</span>
-                  <span className="font-bold text-white text-sm mt-0.5 block">28.8 L / 100 km</span>
+              </div>
+
+              {/* Fuel Cost Metrics */}
+              <div>
+                <span className="text-slate-400 text-[11px] uppercase font-semibold tracking-wider block mb-2">
+                  Fuel Cost Economics
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px]">Fuel Cost per KM</span>
+                      <DollarSign className="h-4 w-4 text-emerald-400" />
+                    </div>
+                    <span className="text-xl font-bold font-mono text-emerald-400 block">
+                      {formatCurrency(currentVehicle.fuelCostPerKm || 0.35)} / km
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      Fleet benchmark: $0.38 / km (Saving $0.03/km)
+                    </span>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px]">Estimated Lifetime Fuel Cost</span>
+                      <Coins className="h-4 w-4 text-purple-400" />
+                    </div>
+                    <span className="text-xl font-bold font-mono text-white block">
+                      {formatCurrency((currentVehicle.odometerKm || 84000) * (currentVehicle.fuelCostPerKm || 0.35))}
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      Based on {currentVehicle.odometerKm.toLocaleString()} km run
+                    </span>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px]">Fuel Expense Share</span>
+                      <Percent className="h-4 w-4 text-rose-400" />
+                    </div>
+                    <span className="text-xl font-bold font-mono text-rose-300 block">
+                      68.5%
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      Primary vehicle operating expenditure
+                    </span>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-3.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px]">Cruising Range at Tank Level</span>
+                      <Gauge className="h-4 w-4 text-blue-400" />
+                    </div>
+                    <span className="text-xl font-bold font-mono text-blue-400 block">
+                      ~{Math.round(currentVehicle.fuelLevelPercent * 11.2)} KM
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      {currentVehicle.fuelLevelPercent}% Tank Capacity remaining
+                    </span>
+                  </div>
                 </div>
-                <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-3">
-                  <span className="text-slate-400 block text-[11px]">Estimated Cruising Range</span>
-                  <span className="font-bold text-blue-400 font-mono text-sm mt-0.5 block">
-                    ~{Math.round(currentVehicle.fuelLevelPercent * 11.2)} KM
-                  </span>
+              </div>
+
+              {/* Fuel Station Refills Log */}
+              <div className="space-y-2.5 pt-2 border-t border-slate-800">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-semibold text-slate-200 text-sm">Recent Commercial Fuel Pump & DEF Receipts</h5>
+                  <Badge variant="outline" className="font-mono text-[10px]">Commercial Fuel Card #9410</Badge>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="p-3 rounded-lg border border-slate-800 bg-[#141c2e] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-white">Pilot Flying J Travel Plaza #810</span>
+                        <Badge variant="info" size="sm">Diesel #2</Badge>
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        Springfield, IL • 2026-09-16 09:15 • Odometer: 84,100 km
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-bold font-mono text-emerald-400 text-sm">$280.00</span>
+                      <span className="text-[10px] text-slate-500 block font-mono">224.0 L @ $1.25/L</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-lg border border-slate-800 bg-[#141c2e] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-white">Love’s Travel Stop & Country Store #412</span>
+                        <Badge variant="purple" size="sm">AdBlue DEF</Badge>
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        Gary, IN • 2026-09-14 18:30 • Odometer: 82,450 km
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-bold font-mono text-cyan-400 text-sm">$54.00</span>
+                      <span className="text-[10px] text-slate-500 block font-mono">45.0 L @ $1.20/L</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-lg border border-slate-800 bg-[#141c2e] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-white">TravelCenters of America (TA) #118</span>
+                        <Badge variant="info" size="sm">Diesel #2</Badge>
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        Benton Harbor, MI • 2026-09-11 11:20 • Odometer: 80,920 km
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-bold font-mono text-emerald-400 text-sm">$237.50</span>
+                      <span className="text-[10px] text-slate-500 block font-mono">190.0 L @ $1.25/L</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1607,6 +2364,68 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
           className="space-y-4 text-xs"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <Select
+                label="Quick Service Package Preset"
+                value={servicePreset}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setServicePreset(val);
+                  if (val === 'full_service') {
+                    setMaintForm((prev) => ({
+                      ...prev,
+                      type: 'preventive',
+                      issueDescription: 'Full Regular Service Interval (Engine Oil 15W-40, Oil Filter, Air Filter & AdBlue Refill)',
+                      actionTaken: 'Mobil Delvac 15W-40 Synthetic (36L) replaced, spin-on oil filter installed, heavy-duty air filter replaced, 45L AdBlue DEF pumped into reservoir.',
+                      totalCost: 0,
+                      nextServiceKm: (prev.odometerAtService || 0) + 15000,
+                    }));
+                  } else if (val === 'oil_and_filter') {
+                    setMaintForm((prev) => ({
+                      ...prev,
+                      type: 'preventive',
+                      issueDescription: 'Scheduled Engine Oil Flush & Oil Filter Replacement',
+                      actionTaken: 'Drained engine oil, replaced with 36L synthetic 15W-40 heavy-duty oil, and replaced full-flow spin-on oil filter.',
+                      totalCost: 0,
+                      nextServiceKm: (prev.odometerAtService || 0) + 15000,
+                    }));
+                  } else if (val === 'air_filter') {
+                    setMaintForm((prev) => ({
+                      ...prev,
+                      type: 'preventive',
+                      issueDescription: 'Engine Intake Air Cleaner Element Replacement',
+                      actionTaken: 'Swapped primary heavy-duty air filter cartridge; cleaned plenum housing; reset intake restriction gauge.',
+                      totalCost: 0,
+                    }));
+                  } else if (val === 'adblue') {
+                    setMaintForm((prev) => ({
+                      ...prev,
+                      type: 'preventive',
+                      issueDescription: 'AdBlue / Diesel Exhaust Fluid (DEF) 50L Reservoir Top-up',
+                      actionTaken: 'Pumped 50L ISO-22241 certified DEF fluid; tested SCR doser nozzle; verified no crystallisation.',
+                      totalCost: 0,
+                    }));
+                  } else if (val === 'tyre_service') {
+                    setMaintForm((prev) => ({
+                      ...prev,
+                      type: 'preventive',
+                      issueDescription: 'Drive Axle Tyre Wear Rotation, Dynamic Balancing & Alignment',
+                      actionTaken: 'Tread depth checked across all axles, drive tyres rotated diagonally, pressure balanced to 110 PSI.',
+                      totalCost: 0,
+                    }));
+                  }
+                }}
+                options={[
+                  { value: 'custom', label: 'Custom Maintenance / Specific Work Order' },
+                  { value: 'full_service', label: '⭐ Full Regular Service (Engine Oil + Oil Filter + Air Filter + AdBlue Refill)' },
+                  { value: 'oil_and_filter', label: '🛢️ Engine Oil Flush & Oil Filter Replacement' },
+                  { value: 'air_filter', label: '💨 Engine Air Intake Filter Swapped' },
+                  { value: 'adblue', label: '⚡ AdBlue / DEF Fluid 50L Reservoir Top-up' },
+                  { value: 'tyre_service', label: '🔄 Tyre Replacement / Rotation & Tread Wear Alignment' },
+                ]}
+              />
+            </div>
+
             <Select
               label="Maintenance Classification"
               value={maintForm.type}
@@ -1677,15 +2496,22 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
               }
             />
 
-            <Input
-              label="Total Cost ($ USD)"
-              type="number"
-              min="0"
-              value={maintForm.totalCost}
-              onChange={(e) =>
-                setMaintForm({ ...maintForm, totalCost: Number(e.target.value) })
-              }
-            />
+            {maintForm.status === 'completed' ? (
+              <Input
+                label="Final Invoice Total Cost ($ USD)"
+                type="number"
+                min="0"
+                value={maintForm.totalCost}
+                onChange={(e) =>
+                  setMaintForm({ ...maintForm, totalCost: Number(e.target.value) })
+                }
+              />
+            ) : (
+              <div className="p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/60 text-xs text-slate-400">
+                <span className="text-slate-300 font-semibold block text-[11px]">Billed Post-Service</span>
+                Parts & labor charges will be calculated and invoiced upon repair completion.
+              </div>
+            )}
 
             <div className="md:col-span-2">
               <Input

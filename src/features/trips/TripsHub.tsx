@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tripsApi } from '../../api/trips.api';
 import { fleetApi } from '../../api/fleet.api';
 import { driversApi } from '../../api/drivers.api';
+import { crmApi } from '../../api/crm.api';
+import { contractsApi } from '../../api/contracts.api';
 import { DataTable, ColumnDef } from '../../components/tables/DataTable';
 import { Tabs } from '../../components/common/Tabs';
 import { Badge } from '../../components/common/Badge';
@@ -60,15 +62,29 @@ export const TripsHub: React.FC = () => {
   const [assignModalVehicleId, setAssignModalVehicleId] = useState<string>('');
 
   // New booking form state
-  const [newBooking, setNewBooking] = useState({
+  // New booking form state
+  const [newBooking, setNewBooking] = useState<{
+    customerName: string;
+    customerPhone: string;
+    pickupLocation: string;
+    dropoffLocation: string;
+    vertical: VerticalType;
+    vehicleType: VehicleType;
+    cargoDescription: string;
+    estimatedAmount: number;
+    customerId?: string;
+    contractId?: string;
+  }>({
     customerName: '',
     customerPhone: '',
     pickupLocation: '',
     dropoffLocation: '',
-    vertical: 'freight_logistics' as VerticalType,
-    vehicleType: 'heavy_truck' as VehicleType,
+    vertical: 'freight_logistics',
+    vehicleType: 'heavy_truck',
     cargoDescription: '',
     estimatedAmount: 2500,
+    customerId: '',
+    contractId: '',
   });
 
   const { data: trips = [], isLoading: isTripsLoading } = useQuery({
@@ -91,6 +107,16 @@ export const TripsHub: React.FC = () => {
     queryFn: () => driversApi.getDrivers(),
   });
 
+  const { data: customers = [] } = useQuery({
+    queryKey: ['crmCustomers'],
+    queryFn: () => crmApi.getCustomers(),
+  });
+
+  const { data: contracts = [] } = useQuery({
+    queryKey: ['contracts'],
+    queryFn: () => contractsApi.getContracts(),
+  });
+
   // Automatically adjust default vehicleType when vertical changes
   const handleVerticalChange = (vertical: VerticalType) => {
     let defaultType: VehicleType = 'heavy_truck';
@@ -99,11 +125,11 @@ export const TripsHub: React.FC = () => {
     else if (vertical === 'last_mile') defaultType = 'mini_truck';
     else if (vertical === 'b2b_contract' || vertical === 'freight_logistics') defaultType = 'heavy_truck';
 
-    setNewBooking({
-      ...newBooking,
+    setNewBooking((prev) => ({
+      ...prev,
       vertical,
       vehicleType: defaultType,
-    });
+    }));
   };
 
   const createBookingMutation = useMutation({
@@ -120,6 +146,8 @@ export const TripsHub: React.FC = () => {
         vehicleType: 'heavy_truck',
         cargoDescription: '',
         estimatedAmount: 2500,
+        customerId: '',
+        contractId: '',
       });
 
       // Prompt immediate vehicle assignment for the newly created booking!
@@ -585,6 +613,17 @@ export const TripsHub: React.FC = () => {
               </div>
             )}
 
+            {/* Dispatch Error Notification */}
+            {assignAndDispatchMutation.isError && (
+              <div className="p-3 rounded-xl border border-rose-500/40 bg-rose-950/40 text-rose-300 text-xs flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0" />
+                <div>
+                  <span className="font-semibold block">Dispatch Authorization Blocked:</span>
+                  <span>{(assignAndDispatchMutation.error as Error)?.message || 'Compliance or availability constraint failed.'}</span>
+                </div>
+              </div>
+            )}
+
             {/* Modal Actions */}
             <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
               <Button
@@ -594,6 +633,7 @@ export const TripsHub: React.FC = () => {
                 onClick={() => {
                   setBookingToAssign(null);
                   setAssignModalVehicleId('');
+                  assignAndDispatchMutation.reset();
                 }}
               >
                 Cancel
@@ -619,7 +659,7 @@ export const TripsHub: React.FC = () => {
         isOpen={isNewBookingModalOpen}
         onClose={() => setIsNewBookingModalOpen(false)}
         title="Create Customer Booking"
-        description="Record an inbound transport or linehaul request and specify required vehicle type."
+        description="Record an inbound transport or linehaul request and link to CRM accounts or active contracts."
         size="lg"
       >
         <form
@@ -629,6 +669,60 @@ export const TripsHub: React.FC = () => {
           }}
           className="space-y-4"
         >
+          {/* CRM Quick Picker */}
+          <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Select
+                label="Registered CRM Shipper / Client (Optional)"
+                value={newBooking.customerId || ''}
+                onChange={(e) => {
+                  const custId = e.target.value;
+                  const c = customers.find((cust) => cust.id === custId);
+                  if (c) {
+                    setNewBooking((prev) => ({
+                      ...prev,
+                      customerId: c.id,
+                      customerName: c.companyName || c.name,
+                      customerPhone: c.phone,
+                    }));
+                  } else {
+                    setNewBooking((prev) => ({ ...prev, customerId: '' }));
+                  }
+                }}
+                options={[
+                  { value: '', label: '-- Custom / Walk-in Shipper --' },
+                  ...customers.map((c) => ({
+                    value: c.id,
+                    label: `${c.companyName || c.name} (${c.contactPerson})`,
+                  })),
+                ]}
+              />
+
+              <Select
+                label="Active Dedicated Contract (Optional)"
+                value={newBooking.contractId || ''}
+                onChange={(e) => {
+                  const contractId = e.target.value;
+                  const contract = contracts.find((c) => c.id === contractId);
+                  setNewBooking((prev) => ({
+                    ...prev,
+                    contractId: contractId || undefined,
+                    ...(contract && !prev.customerName ? { customerName: contract.customerName || contract.clientName } : {}),
+                  }));
+                }}
+                options={[
+                  { value: '', label: '-- Spot / Ad-hoc Booking (No Contract) --' },
+                  ...contracts
+                    .filter((c) => !newBooking.customerId || (c.customerName || c.clientName) === newBooking.customerName)
+                    .map((c) => ({
+                      value: c.id,
+                      label: `${c.contractCode || c.contractNumber} — ${c.title} (${c.customerName || c.clientName})`,
+                    })),
+                ]}
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Customer / Shipper Name"
@@ -672,6 +766,9 @@ export const TripsHub: React.FC = () => {
                 { value: 'corporate_shuttle', label: 'Corporate Shuttle / Cab' },
                 { value: 'b2b_contract', label: 'B2B Contract Logistics' },
                 { value: 'last_mile', label: 'Last-Mile Delivery' },
+                { value: 'tourist_taxi', label: 'Tourist Taxi & Tours' },
+                { value: 'bulk_fleet', label: 'Bulk Liquid & Dry Bulk Haulage' },
+                { value: 'project_logistics', label: 'Project Cargo & Over-Dimensional' },
               ]}
             />
 

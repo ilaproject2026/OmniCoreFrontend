@@ -289,6 +289,19 @@ export const DriverList: React.FC = () => {
         size="lg"
       >
         <form onSubmit={handleAddSubmit} className="space-y-4 text-xs">
+          {createMutation.isError && (
+            <div className="p-3 rounded-xl border border-rose-500/40 bg-rose-950/40 text-rose-300 text-xs flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0" />
+              <div>
+                <span className="font-semibold block">Backend Validation Error:</span>
+                <span>
+                  {(createMutation.error as any)?.message ||
+                    'Driver registration failed on backend validation.'}
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Driver First Name"

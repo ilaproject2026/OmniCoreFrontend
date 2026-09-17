@@ -1,14 +1,16 @@
 import { apiClient } from './client';
-import { SparePart, WarehouseLocation, CrossDockRecord, ShipmentConsolidationGroup } from '../types';
+import { SparePart, WarehouseLocation, CrossDockRecord, ShipmentConsolidationGroup, PurchaseOrder } from '../types';
 import {
   MOCK_SPARE_PARTS,
   MOCK_WAREHOUSES,
   MOCK_CROSS_DOCK_RECORDS,
   MOCK_CONSOLIDATION_GROUPS,
+  MOCK_PURCHASE_ORDERS,
 } from './mockData';
 
 let crossDockState: CrossDockRecord[] = [...MOCK_CROSS_DOCK_RECORDS];
 let consolidationState: ShipmentConsolidationGroup[] = [...MOCK_CONSOLIDATION_GROUPS];
+let purchaseOrdersState: PurchaseOrder[] = [...MOCK_PURCHASE_ORDERS];
 
 export const warehouseApi = {
   getWarehouses: async (): Promise<WarehouseLocation[]> => {
@@ -78,9 +80,65 @@ export const warehouseApi = {
     } catch {
       const part = MOCK_SPARE_PARTS.find((p) => p.id === partId);
       if (!part) throw new Error('Part not found');
+      if (delta < 0 && part.availableQuantity + delta < 0) {
+        throw new Error(`Insufficient Stock: Cannot deduct ${Math.abs(delta)} units. Available: ${part.availableQuantity}`);
+      }
       part.availableQuantity = Math.max(0, part.availableQuantity + delta);
       part.isLowStock = part.availableQuantity <= part.reorderLevel;
       return { ...part };
+    }
+  },
+
+  issuePartsToWorkOrder: async (
+    workOrderId: string,
+    partId: string,
+    quantity: number
+  ): Promise<{ part: SparePart; quantityIssued: number }> => {
+    try {
+      const response = await apiClient.post<{ part: SparePart; quantityIssued: number }>(
+        `/warehouse/parts/${partId}/issue/`,
+        { workOrderId, quantity }
+      );
+      return response.data;
+    } catch {
+      const part = MOCK_SPARE_PARTS.find((p) => p.id === partId);
+      if (!part) throw new Error('Part not found in inventory');
+      if (part.availableQuantity < quantity) {
+        throw new Error(`Stock Shortage: Requested ${quantity} units of ${part.name}, but only ${part.availableQuantity} available.`);
+      }
+      part.availableQuantity -= quantity;
+      part.isLowStock = part.availableQuantity <= part.reorderLevel;
+      return { part, quantityIssued: quantity };
+    }
+  },
+
+  getPurchaseOrders: async (): Promise<PurchaseOrder[]> => {
+    try {
+      const response = await apiClient.get<PurchaseOrder[]>('/warehouse/purchase-orders/');
+      return response.data;
+    } catch {
+      return purchaseOrdersState;
+    }
+  },
+
+  createPurchaseOrder: async (payload: Partial<PurchaseOrder>): Promise<PurchaseOrder> => {
+    try {
+      const response = await apiClient.post<PurchaseOrder>('/warehouse/purchase-orders/', payload);
+      return response.data;
+    } catch {
+      const newPO: PurchaseOrder = {
+        id: `po_${Date.now()}`,
+        poNumber: `PO-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+        warehouseId: payload.warehouseId || 'wh_01',
+        supplierName: payload.supplierName || 'Commercial Fleet Direct',
+        orderDate: new Date().toISOString().split('T')[0],
+        expectedDeliveryDate: payload.expectedDeliveryDate || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+        items: payload.items || [],
+        totalAmount: payload.totalAmount || 0,
+        status: 'ordered',
+      };
+      purchaseOrdersState.unshift(newPO);
+      return newPO;
     }
   },
 

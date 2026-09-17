@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fleetApi } from '../../api/fleet.api';
+import { tripsApi } from '../../api/trips.api';
 import { DataTable, ColumnDef } from '../../components/tables/DataTable';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
@@ -9,13 +10,31 @@ import { Modal } from '../../components/common/Modal';
 import { Input } from '../../components/common/Input';
 import { Vehicle, VehicleStatus, VerticalType } from '../../types';
 import { VehicleDetailsDrawer } from './VehicleDetailsDrawer';
-import { Truck, Plus, Eye, Radio, AlertTriangle, Snowflake } from 'lucide-react';
+import { FuelManagementTab } from './FuelManagementTab';
+import { AccidentManagementTab } from './AccidentManagementTab';
+import { Tabs } from '../../components/common/Tabs';
+import {
+  Truck,
+  Plus,
+  Eye,
+  AlertTriangle,
+  Snowflake,
+  Fuel,
+  TrendingUp,
+  Droplets,
+  Disc,
+  Wrench,
+  DollarSign,
+  ShieldAlert,
+} from 'lucide-react';
 import { useTenant } from '../../contexts/TenantContext';
+import { formatCurrency } from '../../lib/utils';
 
 export const FleetList: React.FC = () => {
   const queryClient = useQueryClient();
   const { tenant } = useTenant();
 
+  const [activeTab, setActiveTab] = useState<'vehicles' | 'fuel' | 'accidents'>('vehicles');
   const [statusFilter, setStatusFilter] = useState('all');
   const [verticalFilter, setVerticalFilter] = useState('all');
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
@@ -33,12 +52,76 @@ export const FleetList: React.FC = () => {
     capacityKg: 24000,
     odometerKm: 0,
     vin: '',
+    financingStatus: 'owned' as Vehicle['financingStatus'],
   });
 
   const { data: vehicles = [], isLoading } = useQuery({
     queryKey: ['fleetVehicles', statusFilter, verticalFilter],
     queryFn: () => fleetApi.getVehicles({ status: statusFilter, vertical: verticalFilter }),
   });
+
+  const { data: allTrips = [] } = useQuery({
+    queryKey: ['fleetAllTrips'],
+    queryFn: () => tripsApi.getTrips(),
+  });
+
+  // Trip metrics aggregated by vehicle
+  const vehicleMetricsMap = useMemo(() => {
+    const map = new Map<string, { totalMargin: number; totalBilling: number; tripsCount: number }>();
+    allTrips.forEach((t) => {
+      const gross = t.commercialRate || t.grossRate || 0;
+      const margin = t.netMargin !== undefined ? t.netMargin : gross - (t.expensesTotal || 0);
+      const keys = [t.vehicleId, t.vehicleReg].filter(Boolean) as string[];
+      keys.forEach((k) => {
+        const existing = map.get(k) || { totalMargin: 0, totalBilling: 0, tripsCount: 0 };
+        existing.totalBilling += gross;
+        existing.totalMargin += margin;
+        existing.tripsCount += 1;
+        map.set(k, existing);
+      });
+    });
+    return map;
+  }, [allTrips]);
+
+  // Fleet wide macro metrics
+  const fleetStats = useMemo(() => {
+    const totalVehicles = vehicles.length;
+    const avgFuelConsumption = totalVehicles > 0
+      ? (vehicles.reduce((acc, v) => acc + (v.fuelConsumptionL100km || 28.5), 0) / totalVehicles).toFixed(1)
+      : '28.5';
+    const avgFuelCost = totalVehicles > 0
+      ? (vehicles.reduce((acc, v) => acc + (v.fuelCostPerKm || 0.35), 0) / totalVehicles).toFixed(2)
+      : '0.35';
+
+    let totalRevenue = 0;
+    let totalNetProfit = 0;
+    allTrips.forEach((t) => {
+      const gross = t.commercialRate || t.grossRate || 0;
+      const margin = t.netMargin !== undefined ? t.netMargin : gross - (t.expensesTotal || 0);
+      totalRevenue += gross;
+      totalNetProfit += margin;
+    });
+    const avgTripMarginPct = totalRevenue > 0
+      ? ((totalNetProfit / totalRevenue) * 100).toFixed(1)
+      : '85.2';
+
+    const serviceAlertCount = vehicles.filter(
+      (v) =>
+        (v.engineOilLifePercent !== undefined && v.engineOilLifePercent < 35) ||
+        v.oilFilterStatus === 'replace_due' ||
+        (v.tyreTreadDepthMm !== undefined && v.tyreTreadDepthMm < 5.0) ||
+        (v.adBlueLevelPercent !== undefined && v.adBlueLevelPercent < 25)
+    ).length;
+
+    return {
+      totalVehicles,
+      avgFuelConsumption,
+      avgFuelCost,
+      totalNetProfit,
+      avgTripMarginPct,
+      serviceAlertCount,
+    };
+  }, [vehicles, allTrips]);
 
   const createMutation = useMutation({
     mutationFn: (payload: Partial<Vehicle>) => fleetApi.createVehicle(payload),
@@ -56,6 +139,7 @@ export const FleetList: React.FC = () => {
         capacityKg: 24000,
         odometerKm: 0,
         vin: '',
+        financingStatus: 'owned',
       });
     },
   });
@@ -75,6 +159,16 @@ export const FleetList: React.FC = () => {
         return <Badge variant="danger" dot>Workshop</Badge>;
       case 'grounded':
         return <Badge variant="warning" dot>Grounded</Badge>;
+      case 'breakdown':
+        return <Badge variant="danger" dot>Breakdown</Badge>;
+      case 'accident':
+        return <Badge variant="danger" dot>Accident / Claim</Badge>;
+      case 'inactive':
+        return <Badge variant="default">Inactive</Badge>;
+      case 'sold':
+        return <Badge variant="default">Sold</Badge>;
+      case 'retired':
+        return <Badge variant="default">Retired</Badge>;
       default:
         return <Badge variant="default">{status}</Badge>;
     }
@@ -139,23 +233,116 @@ export const FleetList: React.FC = () => {
     },
     {
       key: 'telematics',
-      header: 'Total KM & Fuel',
+      header: 'Fuel Economy & Level',
       sortable: true,
       accessor: (r) => r.odometerKm,
-      render: (_, row) => (
-        <div className="text-xs font-mono">
-          <span className="text-slate-200">{row.odometerKm.toLocaleString()} km</span>
-          <div className="flex items-center gap-1 mt-0.5">
-            <div className="h-1.5 w-12 rounded-full bg-slate-800 overflow-hidden">
+      render: (_, row) => {
+        const consumption = row.fuelConsumptionL100km ?? 28.5;
+        const costPerKm = row.fuelCostPerKm ?? 0.35;
+        return (
+          <div className="text-xs font-mono space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-slate-200 font-medium">{row.odometerKm.toLocaleString()} km</span>
+              <span className="text-emerald-400 font-semibold">{row.fuelLevelPercent}%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
               <div
-                className="h-full bg-emerald-500 rounded-full"
+                className={`h-full rounded-full transition-all ${
+                  row.fuelLevelPercent < 20
+                    ? 'bg-red-500'
+                    : row.fuelLevelPercent < 40
+                    ? 'bg-amber-500'
+                    : 'bg-emerald-500'
+                }`}
                 style={{ width: `${row.fuelLevelPercent}%` }}
               />
             </div>
-            <span className="text-[10px] text-slate-400">{row.fuelLevelPercent}%</span>
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+              <Fuel className="h-2.5 w-2.5 text-blue-400" />
+              <span>{consumption} L/100km</span>
+              <span>•</span>
+              <span className="text-slate-300 font-sans">${costPerKm}/km</span>
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
+    },
+    {
+      key: 'tripMargins',
+      header: 'Trip Margin & Revenue',
+      render: (_, row) => {
+        const stats = vehicleMetricsMap.get(row.id) || vehicleMetricsMap.get(row.registrationNumber);
+        if (!stats || stats.totalBilling === 0) {
+          return (
+            <div className="text-xs">
+              <span className="text-slate-500 italic text-[11px]">No active trips</span>
+            </div>
+          );
+        }
+        const marginPct = ((stats.totalMargin / stats.totalBilling) * 100).toFixed(1);
+        return (
+          <div className="text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold font-mono">
+                <TrendingUp className="h-2.5 w-2.5" />
+                +{marginPct}%
+              </span>
+              <span className="font-bold text-white text-[11px] font-mono">
+                {formatCurrency(stats.totalMargin)}
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-0.5">
+              from {formatCurrency(stats.totalBilling)} gross ({stats.tripsCount} trips)
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'consumables',
+      header: 'Consumables & Wears',
+      render: (_, row) => {
+        const oilLife = row.engineOilLifePercent ?? 85;
+        const adBlue = row.adBlueLevelPercent ?? 90;
+        const tyreDepth = row.tyreTreadDepthMm ?? 11.5;
+        const tyreAge = row.tyreYearsInService ?? 1.2;
+        const serviceDue = oilLife < 35 || row.oilFilterStatus === 'replace_due' || tyreDepth < 5.0;
+
+        return (
+          <div className="text-xs space-y-1">
+            <div className="flex items-center gap-2">
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium ${
+                  oilLife < 35 ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-800 text-slate-300'
+                }`}
+                title="Engine Oil Health"
+              >
+                🛢️ Oil {oilLife}%
+              </span>
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium ${
+                  adBlue < 25 ? 'bg-red-500/20 text-red-300' : 'bg-slate-800 text-cyan-300'
+                }`}
+                title="AdBlue / DEF Fluid Level"
+              >
+                💧 DEF {adBlue}%
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-slate-400">
+              <span className="flex items-center gap-1">
+                <Disc className="h-2.5 w-2.5 text-slate-500" />
+                <span>{tyreDepth}mm</span>
+                <span className="text-slate-500 font-sans">({tyreAge}y)</span>
+              </span>
+              {serviceDue && (
+                <span className="text-[9px] text-amber-400 font-bold uppercase tracking-wider">
+                  Service Due
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      },
     },
     {
       key: 'documents',
@@ -209,7 +396,7 @@ export const FleetList: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Fleet Asset Register</h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Real-time telematics, document compliance, maintenance history, and driver assignments.
+            Real-time telematics, fuel telemetry, trip margins, regular service consumables & compliance.
           </p>
         </div>
 
@@ -225,41 +412,125 @@ export const FleetList: React.FC = () => {
         </div>
       </div>
 
-      {/* Vehicles Table */}
-      <DataTable
-        columns={columns}
-        data={vehicles}
-        isLoading={isLoading}
-        searchPlaceholder="Search registration, make, model, driver..."
-        onRowClick={(row) => setSelectedVehicle(row)}
-        filterSlot={
-          <div className="flex items-center gap-2">
-            <Select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-32 h-9 text-xs"
-              options={[
-                { value: 'all', label: 'All Status' },
-                { value: 'available', label: 'Available' },
-                { value: 'on_trip', label: 'On Trip' },
-                { value: 'maintenance', label: 'Workshop' },
-              ]}
-            />
-            <Select
-              value={verticalFilter}
-              onChange={(e) => setVerticalFilter(e.target.value)}
-              className="w-36 h-9 text-xs"
-              options={[
-                { value: 'all', label: 'All Verticals' },
-                { value: 'freight_logistics', label: 'Freight Logistics' },
-                { value: 'cold_chain', label: 'Cold Chain' },
-                { value: 'b2b_contract', label: 'B2B Contract' },
-                { value: 'taxi_cab', label: 'Taxi & Cab' },
-              ]}
-            />
-          </div>
-        }
+      <Tabs
+        tabs={[
+          { id: 'vehicles', label: 'Fleet Assets & Telematics', count: vehicles.length },
+          { id: 'fuel', label: 'Fuel & Dispensation' },
+          { id: 'accidents', label: 'Accidents & Grounding Register' },
+        ]}
+        activeTab={activeTab}
+        onChange={(id) => setActiveTab(id as any)}
       />
+
+      {activeTab === 'fuel' && <FuelManagementTab />}
+      {activeTab === 'accidents' && <AccidentManagementTab />}
+
+      {activeTab === 'vehicles' && (
+        <>
+          {/* Fleet Top KPI Stats Ribbon */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 backdrop-blur-sm">
+              <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                <span>Fleet Assets</span>
+                <Truck className="h-4 w-4 text-blue-400" />
+              </div>
+              <div className="text-xl font-bold text-white font-mono">{fleetStats.totalVehicles}</div>
+              <span className="text-[10px] text-slate-500">Commercial active units</span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 backdrop-blur-sm">
+              <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                <span>Avg Fuel Economy</span>
+                <Fuel className="h-4 w-4 text-amber-400" />
+              </div>
+              <div className="text-xl font-bold text-amber-400 font-mono">
+                {fleetStats.avgFuelConsumption} <span className="text-xs text-slate-400 font-sans">L/100km</span>
+              </div>
+              <span className="text-[10px] text-slate-500">Loaded / highway blend</span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 backdrop-blur-sm">
+              <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                <span>Fuel Cost Index</span>
+                <DollarSign className="h-4 w-4 text-emerald-400" />
+              </div>
+              <div className="text-xl font-bold text-emerald-400 font-mono">
+                ${fleetStats.avgFuelCost} <span className="text-xs text-slate-400 font-sans">/ km</span>
+              </div>
+              <span className="text-[10px] text-slate-500">Burn cost per distance</span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 backdrop-blur-sm">
+              <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                <span>Fleet Trip Margin</span>
+                <TrendingUp className="h-4 w-4 text-cyan-400" />
+              </div>
+              <div className="text-xl font-bold text-cyan-400 font-mono">
+                +{fleetStats.avgTripMarginPct}%
+              </div>
+              <span className="text-[10px] text-emerald-400 font-mono font-medium">
+                {formatCurrency(fleetStats.totalNetProfit)} net profit
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 backdrop-blur-sm col-span-2 md:col-span-1">
+              <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                <span>Consumables Due</span>
+                <Wrench className="h-4 w-4 text-orange-400" />
+              </div>
+              <div className="text-xl font-bold text-orange-400 font-mono">
+                {fleetStats.serviceAlertCount}{' '}
+                <span className="text-xs text-slate-400 font-sans">units</span>
+              </div>
+              <span className="text-[10px] text-slate-500">Oil, DEF, filter or tyre</span>
+            </div>
+          </div>
+
+          {/* Vehicles Table */}
+          <DataTable
+            columns={columns}
+            data={vehicles}
+            isLoading={isLoading}
+            searchPlaceholder="Search registration, make, model, driver..."
+            onRowClick={(row) => setSelectedVehicle(row)}
+            filterSlot={
+              <div className="flex items-center gap-2">
+                <Select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-36 h-9 text-xs"
+                  options={[
+                    { value: 'all', label: 'All Status' },
+                    { value: 'available', label: 'Available' },
+                    { value: 'on_trip', label: 'On Trip' },
+                    { value: 'maintenance', label: 'Workshop' },
+                    { value: 'grounded', label: 'Grounded' },
+                    { value: 'breakdown', label: 'Breakdown' },
+                    { value: 'accident', label: 'Accident' },
+                    { value: 'inactive', label: 'Inactive' },
+                  ]}
+                />
+                <Select
+                  value={verticalFilter}
+                  onChange={(e) => setVerticalFilter(e.target.value)}
+                  className="w-40 h-9 text-xs"
+                  options={[
+                    { value: 'all', label: 'All Verticals' },
+                    { value: 'freight_logistics', label: 'Freight Logistics' },
+                    { value: 'cold_chain', label: 'Cold Chain' },
+                    { value: 'corporate_shuttle', label: 'Corporate Shuttle' },
+                    { value: 'b2b_contract', label: 'B2B Contract' },
+                    { value: 'last_mile', label: 'Last Mile' },
+                    { value: 'tourist_taxi', label: 'Tourist Taxi' },
+                    { value: 'bulk_fleet', label: 'Bulk Fleet' },
+                    { value: 'project_logistics', label: 'Project Cargo' },
+                  ]}
+                />
+              </div>
+            }
+          />
+        </>
+      )}
 
       {/* Vehicle Inspection Drawer */}
       <VehicleDetailsDrawer
@@ -272,12 +543,28 @@ export const FleetList: React.FC = () => {
       {/* Add Vehicle Modal */}
       <Modal
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          createMutation.reset();
+        }}
         title="Register Fleet Vehicle"
         description="Add a new commercial vehicle or reefer unit to the active fleet roster."
         size="lg"
       >
         <form onSubmit={handleAddSubmit} className="space-y-4">
+          {createMutation.isError && (
+            <div className="p-3 rounded-xl border border-rose-500/40 bg-rose-950/40 text-rose-300 text-xs flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0" />
+              <div>
+                <span className="font-semibold block">Backend Validation Error:</span>
+                <span>
+                  {(createMutation.error as any)?.message ||
+                    'Vehicle creation failed on backend validation.'}
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Registration License Plate"
@@ -376,6 +663,18 @@ export const FleetList: React.FC = () => {
               max={new Date().getFullYear() + 1}
               value={newVehicle.year}
               onChange={(e) => setNewVehicle({ ...newVehicle, year: Number(e.target.value) })}
+            />
+
+            <Select
+              label="Ownership Structure"
+              value={newVehicle.financingStatus || 'owned'}
+              onChange={(e) => setNewVehicle({ ...newVehicle, financingStatus: e.target.value as any })}
+              options={[
+                { value: 'owned', label: 'Company Owned (OWNED)' },
+                { value: 'leased', label: 'Leased Asset (LEASED)' },
+                { value: 'rented', label: 'Rented Fleet (RENTED)' },
+                { value: 'attached', label: 'Attached / Partner (ATTACHED)' },
+              ]}
             />
           </div>
 

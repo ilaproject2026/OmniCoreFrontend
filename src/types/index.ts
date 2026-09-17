@@ -1,12 +1,16 @@
 export type VerticalType =
   | 'taxi_cab'
+  | 'tourist_taxi'
   | 'tourist_bus'
+  | 'corporate_fleet'
   | 'freight_logistics'
   | 'packers_movers'
   | 'b2b_contract'
   | 'cold_chain'
   | 'last_mile'
   | 'heavy_machinery'
+  | 'project_logistics'
+  | 'bulk_fleet'
   | 'courier_express'
   | 'corporate_shuttle'
   | 'all_verticals';
@@ -142,7 +146,18 @@ export interface AuthSession {
 }
 
 // ----------------- Fleet & Telematics -----------------
-export type VehicleStatus = 'available' | 'on_trip' | 'maintenance' | 'grounded' | 'reserved';
+export type VehicleStatus =
+  | 'available'
+  | 'on_trip'
+  | 'maintenance'
+  | 'grounded'
+  | 'reserved'
+  | 'breakdown'
+  | 'accident'
+  | 'inactive'
+  | 'sold'
+  | 'retired';
+
 export type FuelType = 'diesel' | 'petrol' | 'cng' | 'ev' | 'hybrid';
 
 export interface VehicleDocument {
@@ -154,6 +169,7 @@ export interface VehicleDocument {
   fileUrl?: string;
   isExpiringSoon: boolean; // within 30 days
   isExpired: boolean;
+  alertStage?: 'safe' | '90d' | '60d' | '30d' | '15d' | '7d' | 'expired';
   verificationStatus: 'verified' | 'pending' | 'rejected';
 }
 
@@ -170,6 +186,8 @@ export type VehicleType =
 export interface Vehicle {
   id: string;
   tenantId: string;
+  branchId?: string;
+  branchName?: string;
   registrationNumber: string;
   make: string;
   model: string;
@@ -202,6 +220,22 @@ export interface Vehicle {
   totalTripsCount: number;
   lastServiceDate?: string;
   nextServiceKm?: number;
+  purchasePrice?: number;
+  purchaseDate?: string;
+  financingStatus?: 'owned' | 'financed' | 'leased';
+  // Fuel Consumption & Cost Telematics
+  fuelConsumptionL100km?: number;
+  fuelCostPerKm?: number;
+  fuelEfficiencyKmPerL?: number;
+  // Regular Service Consumables & Wear
+  adBlueLevelPercent?: number;
+  engineOilLifePercent?: number;
+  oilFilterStatus?: 'good' | 'inspect' | 'replace_due';
+  airFilterStatus?: 'clean' | 'inspect' | 'replace_due';
+  tyreHealthPercent?: number;
+  tyreTreadDepthMm?: number;
+  tyreYearsInService?: number;
+  brakePadLifePercent?: number;
 }
 
 // ----------------- Driver Management -----------------
@@ -213,6 +247,7 @@ export interface DriverDocument {
   expiryDate: string;
   isExpiringSoon: boolean;
   isExpired: boolean;
+  alertStage?: 'safe' | '90d' | '60d' | '30d' | '15d' | '7d' | 'expired';
 }
 
 export interface DriverPayroll {
@@ -230,17 +265,26 @@ export interface DriverPayroll {
 export interface Driver {
   id: string;
   tenantId: string;
+  branchId?: string;
+  branchName?: string;
   firstName: string;
   lastName: string;
+  first_name?: string;
+  last_name?: string;
   email: string;
   phone: string;
   address?: string;
   experienceYears?: number;
   avatar?: string;
   licenseNumber: string;
+  license_number?: string;
   licenseType: string;
+  license_type?: string;
   licenseExpiryDate: string;
-  status: 'available' | 'on_duty' | 'on_trip' | 'leave' | 'suspended';
+  license_expiry?: string;
+  badgeNumber?: string;
+  status: 'available' | 'on_duty' | 'on_trip' | 'leave' | 'suspended' | string;
+  leaveStatus?: 'none' | 'on_leave' | 'sick_leave' | 'suspended';
   assignedVehicleId?: string;
   assignedVehicleReg?: string;
   safetyScore: number; // 0 - 100
@@ -274,12 +318,18 @@ export interface TripExpense {
   receiptUrl?: string;
   loggedAt: string;
   approved: boolean;
+  fuelLitres?: number;
+  fuelPricePerLitre?: number;
+  note?: string;
 }
 
 export interface Booking {
   id: string;
   bookingCode: string;
   tenantId: string;
+  branchId?: string;
+  customerId?: string;
+  contractId?: string;
   customerName: string;
   customerPhone: string;
   customerEmail?: string;
@@ -301,7 +351,10 @@ export interface Trip {
   id: string;
   tripCode: string;
   tenantId: string;
+  branchId?: string;
   bookingId?: string;
+  customerId?: string;
+  contractId?: string;
   customerName: string;
   vertical: VerticalType;
   vehicleType?: VehicleType;
@@ -316,10 +369,13 @@ export interface Trip {
   status: TripStatus;
   startTime?: string;
   endTime?: string;
-  estimatedArrival: string;
+  estimatedArrival?: string;
   commercialRate: number;
   expensesTotal: number;
   expenses: TripExpense[];
+  grossRate?: number;
+  netMargin?: number;
+  invoiceId?: string;
   temperatureLogs?: { timestamp: string; tempC: number }[];
   timeline: {
     status: TripStatus;
@@ -330,13 +386,14 @@ export interface Trip {
 }
 
 // ----------------- Contracts & Tenders -----------------
-export type TenderStatus = 'draft' | 'under_review' | 'submitted' | 'shortlisted' | 'won' | 'lost';
-export type ContractStatus = 'active' | 'expiring_soon' | 'renewed' | 'terminated' | 'completed';
+export type TenderStatus = 'draft' | 'under_review' | 'submitted' | 'shortlisted' | 'won' | 'lost' | 'awarded';
+export type ContractStatus = 'draft' | 'active' | 'expiring_soon' | 'renewed' | 'terminated' | 'completed';
 
 export interface Tender {
   id: string;
   tenderCode: string;
   title: string;
+  customerId?: string;
   clientName: string;
   industry: string;
   estimatedValue: number;
@@ -344,6 +401,7 @@ export interface Tender {
   status: TenderStatus;
   scopeSummary: string;
   estimatedVehicleRequired: number;
+  wonContractId?: string;
   proposalDraftUrl?: string;
   costBreakdown: {
     fleetCosts: number;
@@ -353,22 +411,68 @@ export interface Tender {
   };
 }
 
+export interface ContractRoute {
+  id?: string;
+  origin: string;
+  destination: string;
+  agreedRate: number;
+  ratePerTrip?: number;
+  expectedTrips: number;
+  distanceKm: number;
+  transitTimeHours?: number;
+}
+
+export interface ContractProfitability {
+  totalRevenue: number;
+  fuelExpenses: number;
+  driverWages: number;
+  driverExpenses?: number;
+  maintenanceCost: number;
+  maintenanceExpenses?: number;
+  tollExpenses: number;
+  otherExpenses: number;
+  netProfit: number;
+  grossProfit?: number;
+  marginPercent: number;
+  profitMarginPercent?: number;
+  completedTripsCount: number;
+  completedTrips?: number;
+  totalTrips?: number;
+  totalAgreedTrips: number;
+  billedRevenue?: number;
+  totalOperatingCosts?: number;
+}
+
 export interface Contract {
   id: string;
   contractCode: string;
+  contractNumber?: string;
   title: string;
+  customerId?: string;
   clientName: string;
+  customerName?: string;
   vertical: VerticalType;
+  contractType?: 'dedicated_fleet' | 'ad_hoc_volume' | 'annual_rate' | 'government_tender';
+  pricingModel?: 'per_km' | 'per_trip' | 'monthly_fixed' | 'milestone_slab';
   startDate: string;
   endDate: string;
   totalContractValue: number;
   realizedRevenue: number;
   dedicatedVehiclesCount: number;
+  dedicatedVehicleIds?: string[];
+  minMonthlyTrips?: number;
   status: ContractStatus;
   slaTargetPercent: number;
   slaActualPercent: number;
   paymentTerms: string;
+  paymentTermsDays?: number;
+  billingCycle?: 'weekly' | 'biweekly' | 'monthly' | 'milestone' | 'per_trip' | 'quarterly';
+  penalties?: string;
+  securityDeposit?: number;
   renewalAlertDays: number;
+  routes?: ContractRoute[];
+  profitability?: ContractProfitability;
+  attachments?: { id: string; name: string; url: string; uploadedAt: string }[];
 }
 
 // ----------------- Maintenance & Workshop -----------------
@@ -432,10 +536,32 @@ export interface SparePart {
 // ----------------- Finance & Invoicing -----------------
 export type InvoiceStatus = 'draft' | 'issued' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled';
 
+export interface Payment {
+  id: string;
+  paymentCode?: string;
+  invoiceId: string;
+  invoiceNumber?: string;
+  customerId?: string;
+  customerName?: string;
+  amount: number;
+  paymentMethod: 'bank_transfer' | 'ach' | 'check' | 'credit_card' | 'cash' | 'wire' | 'fuel_card' | 'company_cash';
+  referenceNumber: string;
+  paidAt: string;
+  paymentDate?: string;
+  bankAccount: string;
+  status?: 'completed' | 'pending' | 'failed';
+  notes?: string;
+  recordedBy?: string;
+}
+
 export interface Invoice {
   id: string;
   invoiceNumber: string;
+  customerId?: string;
   clientName: string;
+  tripId?: string;
+  contractId?: string;
+  branchId?: string;
   issueDate: string;
   dueDate: string;
   amount: number;
@@ -444,11 +570,124 @@ export interface Invoice {
   balanceDue: number;
   status: InvoiceStatus;
   vertical: VerticalType;
+  payments?: Payment[];
   items: {
     description: string;
     quantity: number;
     unitPrice: number;
     total: number;
+  }[];
+}
+
+// ----------------- Branch Management -----------------
+export interface Branch {
+  id: string;
+  tenantId: string;
+  code: string;
+  name: string;
+  city: string;
+  state: string;
+  address: string;
+  phone: string;
+  managerName: string;
+  managerEmail: string;
+  vehiclesCount: number;
+  driversCount: number;
+  activeTripsCount: number;
+  status: 'active' | 'inactive';
+}
+
+// ----------------- Fuel Telematics & Logbook -----------------
+export interface FuelLogEntry {
+  id: string;
+  vehicleId: string;
+  vehicleReg: string;
+  driverId?: string;
+  driverName?: string;
+  tripId?: string;
+  fuelStation: string;
+  liters: number;
+  pricePerLiter: number;
+  costPerLiter?: number;
+  totalCost: number;
+  odometerKm: number;
+  previousOdometerKm?: number;
+  calculatedKmPerLiter?: number;
+  kmPerLiter?: number;
+  isAbnormal?: boolean;
+  abnormalReason?: string;
+  paymentMethod: 'fuel_card' | 'company_cash' | 'driver_reimbursement' | 'corporate_card' | 'cash' | 'depot_tank';
+  receiptUrl?: string;
+  receiptNumber?: string;
+  loggedAt: string;
+  date?: string;
+}
+
+// ----------------- Accident & Incident Management -----------------
+export interface AccidentReport {
+  id: string;
+  accidentCode: string;
+  reportNumber?: string;
+  vehicleId: string;
+  vehicleReg: string;
+  driverId: string;
+  driverName: string;
+  tripId?: string;
+  incidentDate: string;
+  dateTime?: string;
+  location: string;
+  damageSeverity: 'minor' | 'moderate' | 'severe' | 'total_loss';
+  severity?: 'minor' | 'moderate' | 'severe' | 'fatal';
+  damageDescription: string;
+  description?: string;
+  thirdPartyInvolved: boolean;
+  thirdPartyDetails?: string;
+  policeReportNumber?: string;
+  estimatedRepairCost: number;
+  estimatedDamageCost?: number;
+  actualRepairCost?: number;
+  insuranceClaimId?: string;
+  insuranceClaimStatus?: 'not_filed' | 'filed' | 'under_review' | 'approved' | 'settled' | 'rejected';
+  maintenanceWorkOrderId?: string;
+  vehicleDowntimeDays: number;
+  status: 'reported' | 'investigating' | 'under_repair' | 'cleared' | 'closed';
+  photos?: string[];
+  preventable: boolean;
+  notes?: string;
+}
+
+// ----------------- Warehouse Procurement & Goods Received -----------------
+export interface PurchaseOrder {
+  id: string;
+  poNumber: string;
+  warehouseId: string;
+  supplierName: string;
+  orderDate: string;
+  expectedDeliveryDate: string;
+  items: {
+    partId: string;
+    partName: string;
+    partSku: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+  }[];
+  totalAmount: number;
+  status: 'draft' | 'ordered' | 'partially_received' | 'received' | 'cancelled';
+}
+
+export interface GoodsReceivedNote {
+  id: string;
+  grnNumber: string;
+  poId: string;
+  warehouseId: string;
+  receivedDate: string;
+  receivedBy: string;
+  notes?: string;
+  itemsReceived: {
+    partId: string;
+    quantityReceived: number;
+    condition: 'good' | 'damaged' | 'discrepancy';
   }[];
 }
 
@@ -466,22 +705,28 @@ export interface Lead {
   estimatedMonthlyValue: number;
   assignedRep: string;
   notes: string;
+  campaignId?: string;
   lastContactDate: string;
 }
 
 export interface Customer {
   id: string;
   name: string;
+  companyName?: string;
   code: string;
   contactPerson: string;
   email: string;
   phone: string;
   address: string;
+  billingAddress?: string;
   taxNumber: string;
+  taxId?: string;
   creditLimit: number;
   outstandingBalance: number;
   activeContractsCount: number;
   totalTripsCompleted: number;
+  status?: 'active' | 'inactive' | 'suspended';
+  paymentTerms?: string;
 }
 
 // ----------------- HR & Employees -----------------
@@ -494,6 +739,7 @@ export interface Employee {
   phone: string;
   department: 'Operations' | 'Fleet' | 'Finance' | 'HR' | 'Warehouse' | 'Field' | 'Admin';
   role: TenantRole;
+  branchId?: string;
   joiningDate: string;
   status: 'active' | 'on_leave' | 'resigned';
   salary?: {
@@ -555,7 +801,9 @@ export type NotificationType =
   | 'low_inventory'
   | 'payment_due'
   | 'trip_delayed'
-  | 'cold_chain_temp_alert';
+  | 'cold_chain_temp_alert'
+  | 'accident_reported'
+  | 'fuel_abnormal';
 
 export interface NotificationItem {
   id: string;
@@ -565,6 +813,7 @@ export interface NotificationItem {
   severity: 'low' | 'medium' | 'high' | 'critical';
   timestamp: string;
   isRead: boolean;
+  status?: 'unread' | 'read' | 'resolved' | 'dismissed';
   linkUrl?: string;
   actionRequired?: boolean;
 }

@@ -48,6 +48,10 @@ export const TripDetailsDrawer: React.FC<TripDetailsDrawerProps> = ({
       tripsApi.updateTripStatus(trip!.id, status, note),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trips'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['fleetVehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
     },
   });
 
