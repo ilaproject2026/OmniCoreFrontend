@@ -1,8 +1,17 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-// Base API URL from environment variable or local proxy default
-export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || '/api/v1';
+// Resolve and normalize Base API URL from environment variable or default
+const resolveBaseUrl = (): string => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  let base = envUrl && envUrl.trim() ? envUrl.trim() : 'https://omni-core-backend-j7xe.vercel.app/api/v1';
+  base = base.replace(/\/+$/, '');
+  if (!base.endsWith('/api/v1') && !base.endsWith('/api')) {
+    base = `${base}/api/v1`;
+  }
+  return base;
+};
+
+export const API_BASE_URL = resolveBaseUrl();
 
 export interface ApiErrorResponse {
   message: string;
