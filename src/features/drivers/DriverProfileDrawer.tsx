@@ -17,6 +17,7 @@ import {
   Phone,
   Mail,
   ShieldCheck,
+  MapPin,
 } from 'lucide-react';
 import { formatDate, formatCurrency } from '../../lib/utils';
 
@@ -80,10 +81,22 @@ export const DriverProfileDrawer: React.FC<DriverProfileDrawerProps> = ({
                     {driver.status.replace('_', ' ').toUpperCase()}
                   </Badge>
                 </div>
-                <div className="flex items-center gap-3 text-slate-400">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-400">
                   <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {driver.phone}</span>
                   <span>•</span>
                   <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> {driver.email}</span>
+                  {driver.address && (
+                    <>
+                      <span>•</span>
+                      <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {driver.address}</span>
+                    </>
+                  )}
+                  {driver.experienceYears !== undefined && driver.experienceYears > 0 && (
+                    <>
+                      <span>•</span>
+                      <span className="text-blue-400 font-medium">{driver.experienceYears} Years Exp</span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

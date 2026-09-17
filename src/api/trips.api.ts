@@ -1,6 +1,6 @@
 import { apiClient } from './client';
 import { Booking, Trip, TripExpense, TripStatus } from '../types';
-import { MOCK_BOOKINGS, MOCK_TRIPS } from './mockData';
+import { MOCK_BOOKINGS, MOCK_TRIPS, MOCK_VEHICLES, MOCK_DRIVERS } from './mockData';
 
 export const tripsApi = {
   getBookings: async (params?: { status?: string }): Promise<Booking[]> => {
@@ -36,11 +36,13 @@ export const tripsApi = {
         customerPhone: payload.customerPhone || '+1 (555) 012-3456',
         customerEmail: payload.customerEmail,
         vertical: payload.vertical || 'freight_logistics',
+        vehicleType: payload.vehicleType || 'heavy_truck',
         pickupLocation: payload.pickupLocation || 'Chicago Facility Hub',
         dropoffLocation: payload.dropoffLocation || 'Detroit Assembly Terminal',
         scheduledPickupTime: payload.scheduledPickupTime || 'Tomorrow 08:00',
-        cargoDescription: payload.cargoDescription || 'Industrial standard pallet load',
+        cargoDescription: payload.cargoDescription || 'Industrial standard load',
         estimatedWeightKg: payload.estimatedWeightKg || 12000,
+        passengerCount: payload.passengerCount,
         estimatedAmount: payload.estimatedAmount || 2800,
         currency: 'USD',
         status: 'pending',
@@ -107,7 +109,7 @@ export const tripsApi = {
     }
   },
 
-  dispatchBooking: async (bookingId: string, vehicleId: string, driverId: string): Promise<Trip> => {
+  dispatchBooking: async (bookingId: string, vehicleId: string, driverId?: string): Promise<Trip> => {
     try {
       const response = await apiClient.post<Trip>('/trips/dispatch/', {
         bookingId,
@@ -119,30 +121,48 @@ export const tripsApi = {
       const bk = MOCK_BOOKINGS.find((b) => b.id === bookingId);
       if (bk) bk.status = 'dispatched';
 
+      const veh = MOCK_VEHICLES.find((v) => v.id === vehicleId);
+      if (veh) veh.status = 'on_trip';
+
+      const resolvedDriverId = driverId || veh?.assignedDriverId;
+      const drv = MOCK_DRIVERS.find((d) => d.id === resolvedDriverId);
+      if (drv) drv.status = 'on_trip';
+
+      const assignedDriverName = drv
+        ? `${drv.firstName} ${drv.lastName}`
+        : veh?.assignedDriverName || 'Assigned Driver';
+      const assignedDriverPhone = drv?.phone || '+1 (312) 555-0834';
+      const assignedVehicleReg = veh?.registrationNumber || 'IL-DISP-01';
+
       const newTrip: Trip = {
         id: 'trip_' + Math.random().toString(36).substring(2, 7),
         tripCode: 'TRP-2026-' + Math.floor(8900 + Math.random() * 1000),
-        tenantId: 'tenant_apex',
+        tenantId: bk?.tenantId || veh?.tenantId || 'tenant_apex',
         bookingId: bookingId,
         customerName: bk ? bk.customerName : 'Dispatched Customer',
-        vertical: bk ? bk.vertical : 'freight_logistics',
+        vertical: bk ? bk.vertical : (veh?.vertical || 'freight_logistics'),
+        vehicleType: bk?.vehicleType || veh?.type,
         vehicleId: vehicleId,
-        vehicleReg: 'IL-6102-FR',
-        driverId: driverId,
-        driverName: 'Darius Jackson',
-        driverPhone: '+1 (312) 555-0834',
-        origin: bk ? bk.pickupLocation : 'Chicago Terminal',
-        destination: bk ? bk.dropoffLocation : 'Regional DC',
-        distanceKm: 450,
+        vehicleReg: assignedVehicleReg,
+        driverId: resolvedDriverId || 'drv_default',
+        driverName: assignedDriverName,
+        driverPhone: assignedDriverPhone,
+        origin: bk ? bk.pickupLocation : 'Origin Facility',
+        destination: bk ? bk.dropoffLocation : 'Destination Terminal',
+        distanceKm: Math.floor(220 + Math.random() * 320),
         status: 'dispatched',
         startTime: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        estimatedArrival: 'Today 18:00',
+        estimatedArrival: 'Tomorrow 18:00',
         commercialRate: bk ? bk.estimatedAmount : 3200,
         expensesTotal: 0,
         expenses: [],
         timeline: [
-          { status: 'scheduled', timestamp: 'Just now', note: 'Booking accepted' },
-          { status: 'dispatched', timestamp: 'Just now', note: 'Assigned to IL-6102-FR (Darius Jackson)' },
+          { status: 'scheduled', timestamp: 'Just now', note: `Booking accepted for ${bk?.customerName || 'Customer'}` },
+          {
+            status: 'dispatched',
+            timestamp: 'Just now',
+            note: `Vehicle ${assignedVehicleReg} (${veh?.make || ''} ${veh?.model || ''}) dispatched with Driver ${assignedDriverName}`,
+          },
         ],
       };
       MOCK_TRIPS.unshift(newTrip);
@@ -158,6 +178,16 @@ export const tripsApi = {
       const trip = MOCK_TRIPS.find((t) => t.id === tripId);
       if (!trip) throw new Error('Trip not found');
       trip.status = status;
+
+      // If trip completed, restore vehicle and driver availability
+      if (status === 'completed') {
+        const veh = MOCK_VEHICLES.find((v) => v.id === trip.vehicleId);
+        if (veh) veh.status = 'available';
+
+        const drv = MOCK_DRIVERS.find((d) => d.id === trip.driverId);
+        if (drv) drv.status = 'available';
+      }
+
       trip.timeline.push({
         status,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),

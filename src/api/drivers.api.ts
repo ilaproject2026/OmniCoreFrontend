@@ -49,11 +49,14 @@ export const driversApi = {
         lastName: payload.lastName || 'Doe',
         email: payload.email || 'driver@apexlogistics.com',
         phone: payload.phone || '+1 (555) 123-4567',
+        address: payload.address || '',
+        experienceYears: payload.experienceYears || 0,
+        avatar: payload.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
         licenseNumber: payload.licenseNumber || 'CDL-IL-' + Math.floor(10000000 + Math.random() * 90000000),
         licenseType: payload.licenseType || 'Class A CDL',
         licenseExpiryDate: payload.licenseExpiryDate || '2028-12-31',
-        status: 'available',
-        safetyScore: 95,
+        status: payload.status || 'available',
+        safetyScore: payload.safetyScore || 98,
         totalTrips: 0,
         onTimeDeliveryRate: 100,
         joinedDate: new Date().toISOString().split('T')[0],
@@ -83,6 +86,17 @@ export const driversApi = {
     } catch {
       const index = MOCK_DRIVERS.findIndex((d) => d.id === id);
       if (index === -1) throw new Error('Driver not found');
+
+      // Enforce unique vehicle binding: if a driver is bound to a vehicle, unbind any other driver from it
+      if (payload.assignedVehicleId) {
+        MOCK_DRIVERS.forEach((d) => {
+          if (d.id !== id && d.assignedVehicleId === payload.assignedVehicleId) {
+            d.assignedVehicleId = undefined;
+            d.assignedVehicleReg = undefined;
+          }
+        });
+      }
+
       MOCK_DRIVERS[index] = { ...MOCK_DRIVERS[index], ...payload };
       return MOCK_DRIVERS[index];
     }

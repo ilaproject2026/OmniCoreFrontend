@@ -31,6 +31,7 @@ export const FleetList: React.FC = () => {
     vertical: 'freight_logistics' as VerticalType,
     fuelType: 'diesel' as Vehicle['fuelType'],
     capacityKg: 24000,
+    odometerKm: 0,
     vin: '',
   });
 
@@ -53,6 +54,7 @@ export const FleetList: React.FC = () => {
         vertical: 'freight_logistics',
         fuelType: 'diesel',
         capacityKg: 24000,
+        odometerKm: 0,
         vin: '',
       });
     },
@@ -137,7 +139,9 @@ export const FleetList: React.FC = () => {
     },
     {
       key: 'telematics',
-      header: 'Odometer & Fuel',
+      header: 'Total KM & Fuel',
+      sortable: true,
+      accessor: (r) => r.odometerKm,
       render: (_, row) => (
         <div className="text-xs font-mono">
           <span className="text-slate-200">{row.odometerKm.toLocaleString()} km</span>
@@ -262,6 +266,7 @@ export const FleetList: React.FC = () => {
         vehicle={selectedVehicle}
         isOpen={Boolean(selectedVehicle)}
         onClose={() => setSelectedVehicle(null)}
+        onVehicleUpdated={(updated) => setSelectedVehicle(updated)}
       />
 
       {/* Add Vehicle Modal */}
@@ -352,6 +357,25 @@ export const FleetList: React.FC = () => {
               type="number"
               value={newVehicle.capacityKg}
               onChange={(e) => setNewVehicle({ ...newVehicle, capacityKg: Number(e.target.value) })}
+            />
+
+            <Input
+              label="Total KM Run"
+              type="number"
+              min="0"
+              placeholder="e.g. 0 or 25000"
+              helperText="Current odometer reading in kilometers"
+              value={newVehicle.odometerKm}
+              onChange={(e) => setNewVehicle({ ...newVehicle, odometerKm: Number(e.target.value) })}
+            />
+
+            <Input
+              label="Manufacturing Year"
+              type="number"
+              min="1990"
+              max={new Date().getFullYear() + 1}
+              value={newVehicle.year}
+              onChange={(e) => setNewVehicle({ ...newVehicle, year: Number(e.target.value) })}
             />
           </div>
 

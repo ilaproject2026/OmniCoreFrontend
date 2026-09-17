@@ -57,7 +57,7 @@ export const fleetApi = {
         status: 'available',
         vin: payload.vin || '1FUJBBCK4NL' + Math.floor(100000 + Math.random() * 900000),
         fuelType: payload.fuelType || 'diesel',
-        odometerKm: payload.odometerKm || 12000,
+        odometerKm: payload.odometerKm !== undefined && !isNaN(payload.odometerKm) ? payload.odometerKm : 0,
         fuelLevelPercent: 100,
         capacityKg: payload.capacityKg || 25000,
         documents: [],
@@ -74,7 +74,36 @@ export const fleetApi = {
       return response.data;
     } catch {
       const index = MOCK_VEHICLES.findIndex((v) => v.id === id);
-      if (index === -1) throw new Error('Vehicle not found');
+      const current = MOCK_VEHICLES[index];
+
+      // Prohibit changing driver while vehicle is currently on a trip
+      if (
+        payload.assignedDriverId !== undefined &&
+        payload.assignedDriverId !== current.assignedDriverId &&
+        current.status === 'on_trip'
+      ) {
+        throw new Error('Prohibited: Cannot reassign driver while vehicle is currently on an active trip.');
+      }
+
+      // Enforce unique driver assignment and prohibit reassigning a driver who is on an active trip
+      if (payload.assignedDriverId) {
+        const busyVehicle = MOCK_VEHICLES.find(
+          (v) => v.id !== id && v.assignedDriverId === payload.assignedDriverId && v.status === 'on_trip'
+        );
+        if (busyVehicle) {
+          throw new Error(
+            `Prohibited: Driver is currently on an active trip on vehicle ${busyVehicle.registrationNumber} and cannot be assigned until the trip is completed.`
+          );
+        }
+
+        MOCK_VEHICLES.forEach((v) => {
+          if (v.id !== id && v.assignedDriverId === payload.assignedDriverId) {
+            v.assignedDriverId = undefined;
+            v.assignedDriverName = undefined;
+          }
+        });
+      }
+
       MOCK_VEHICLES[index] = { ...MOCK_VEHICLES[index], ...payload };
       return MOCK_VEHICLES[index];
     }

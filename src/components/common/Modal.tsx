@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '../../lib/utils';
 import { X } from 'lucide-react';
 
@@ -30,6 +31,7 @@ export const Modal: React.FC<ModalProps> = ({
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
   const sizeClasses = {
     sm: 'max-w-md',
@@ -39,8 +41,8 @@ export const Modal: React.FC<ModalProps> = ({
     full: 'max-w-6xl',
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
@@ -74,6 +76,7 @@ export const Modal: React.FC<ModalProps> = ({
         {/* Footer */}
         {footer && <div className="pt-4 border-t border-slate-800 flex justify-end gap-3">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

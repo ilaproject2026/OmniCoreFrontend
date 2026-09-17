@@ -157,6 +157,16 @@ export interface VehicleDocument {
   verificationStatus: 'verified' | 'pending' | 'rejected';
 }
 
+export type VehicleType =
+  | 'sedan'
+  | 'suv'
+  | 'bus'
+  | 'mini_truck'
+  | 'heavy_truck'
+  | 'reefer_cold'
+  | 'flatbed'
+  | 'container';
+
 export interface Vehicle {
   id: string;
   tenantId: string;
@@ -164,7 +174,7 @@ export interface Vehicle {
   make: string;
   model: string;
   year: number;
-  type: 'sedan' | 'suv' | 'bus' | 'mini_truck' | 'heavy_truck' | 'reefer_cold' | 'flatbed' | 'container';
+  type: VehicleType;
   vertical: VerticalType;
   status: VehicleStatus;
   vin: string;
@@ -224,6 +234,8 @@ export interface Driver {
   lastName: string;
   email: string;
   phone: string;
+  address?: string;
+  experienceYears?: number;
   avatar?: string;
   licenseNumber: string;
   licenseType: string;
@@ -272,6 +284,7 @@ export interface Booking {
   customerPhone: string;
   customerEmail?: string;
   vertical: VerticalType;
+  vehicleType?: VehicleType;
   pickupLocation: string;
   dropoffLocation: string;
   scheduledPickupTime: string;
@@ -291,6 +304,7 @@ export interface Trip {
   bookingId?: string;
   customerName: string;
   vertical: VerticalType;
+  vehicleType?: VehicleType;
   vehicleId: string;
   vehicleReg: string;
   driverId: string;
