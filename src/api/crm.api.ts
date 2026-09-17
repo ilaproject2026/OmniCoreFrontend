@@ -84,21 +84,67 @@ export const crmApi = {
 
   getCustomers: async (): Promise<Customer[]> => {
     try {
-      const response = await apiClient.get<Customer[]>('/crm/customers/');
-      return response.data;
+      const response = await apiClient.get<any>('/crm/customers/');
+      const raw: any[] = Array.isArray(response.data)
+        ? response.data
+        : response.data?.results || response.data?.data || [];
+      return raw.map((c: any) => ({
+        id: c.id,
+        name: c.company_name || c.name || 'Enterprise Client',
+        companyName: c.company_name || c.name || 'Enterprise Client',
+        code: c.code || `CST-${String(c.id).slice(0, 6).toUpperCase()}`,
+        contactPerson: c.contact_person || c.contactPerson || 'Contact Person',
+        email: c.email || '',
+        phone: c.phone || '',
+        address: c.address || '',
+        taxNumber: c.tax_id || c.taxNumber || '',
+        creditLimit: Number(c.credit_limit ?? c.creditLimit ?? 50000),
+        outstandingBalance: Number(c.outstanding_balance ?? c.outstandingBalance ?? 0),
+        activeContractsCount: Number(c.active_contracts_count ?? 0),
+        totalTripsCompleted: Number(c.total_trips_completed ?? 0),
+      }));
     } catch {
       return customersState;
     }
   },
 
   createCustomer: async (payload: Partial<Customer>): Promise<Customer> => {
+    const backendPayload = {
+      company_name: (payload as any).companyName || payload.name || 'Enterprise Client',
+      name: payload.name || (payload as any).companyName || 'Enterprise Client',
+      contact_person: (payload as any).contactPerson || (payload as any).contact_person || 'Logistics Coordinator',
+      email: payload.email || 'client@enterprise.com',
+      phone: payload.phone || '+1 (555) 012-3344',
+      address: (payload as any).billingAddress || payload.address || 'Commercial Logistics Depot',
+      tax_id: (payload as any).taxId || payload.taxNumber || `TAX-${Math.floor(100000 + Math.random() * 900000)}`,
+      credit_limit: payload.creditLimit || 50000,
+    };
+
     try {
-      const response = await apiClient.post<Customer>('/crm/customers/', payload);
-      return response.data;
+      const response = await apiClient.post<any>('/crm/customers/', backendPayload);
+      const c = response.data;
+      const created: Customer = {
+        id: c.id,
+        name: c.company_name || c.name || backendPayload.name,
+        companyName: c.company_name || c.name || backendPayload.name,
+        code: c.code || `CST-${String(c.id).slice(0, 6).toUpperCase()}`,
+        contactPerson: c.contact_person || backendPayload.contact_person,
+        email: c.email || backendPayload.email,
+        phone: c.phone || backendPayload.phone,
+        address: c.address || backendPayload.address,
+        taxNumber: c.tax_id || backendPayload.tax_id,
+        creditLimit: Number(c.credit_limit ?? backendPayload.credit_limit),
+        outstandingBalance: 0,
+        activeContractsCount: 0,
+        totalTripsCompleted: 0,
+      };
+      customersState.unshift(created);
+      return created;
     } catch {
       const newCustomer: Customer = {
         id: `cust_${Date.now()}`,
-        name: payload.name || 'New Enterprise Client',
+        name: payload.name || (payload as any).companyName || 'New Enterprise Client',
+        companyName: (payload as any).companyName || payload.name || 'New Enterprise Client',
         code: payload.code || `CST-${Math.floor(100 + Math.random() * 900)}`,
         contactPerson: payload.contactPerson || 'Primary Contact',
         email: payload.email || 'client@enterprise.com',
