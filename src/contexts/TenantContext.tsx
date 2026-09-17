@@ -20,6 +20,7 @@ interface TenantContextType {
   setPackageTier: (tier: PackageTier) => void;
   toggleAddon: (addonKey: AddonKey) => void;
   upgradePackage: (newTier: PackageTier, addons: AddonKey[]) => Promise<void>;
+  reactivateTenant: () => void;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
@@ -89,6 +90,27 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         },
         updatedAt: new Date().toISOString().slice(0, 10),
       };
+      localStorage.setItem('omni_active_tenant', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const reactivateTenant = useCallback(() => {
+    setTenant((prev) => {
+      const updated: Tenant = {
+        ...prev,
+        status: 'active',
+        subscription: {
+          ...prev.subscription,
+          status: 'active',
+        },
+        updatedAt: new Date().toISOString().slice(0, 10),
+      };
+      const found = MOCK_TENANTS.find((t) => t.id === prev.id);
+      if (found) {
+        found.status = 'active';
+        if (found.subscription) found.subscription.status = 'active';
+      }
       localStorage.setItem('omni_active_tenant', JSON.stringify(updated));
       return updated;
     });
@@ -176,6 +198,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setPackageTier,
         toggleAddon,
         upgradePackage,
+        reactivateTenant,
       }}
     >
       {children}

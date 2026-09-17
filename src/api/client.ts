@@ -1,9 +1,8 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-// Base API URL from environment variable or official DevTunnel DRF backend default
+// Base API URL from environment variable or local proxy default
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  'https://3lrrk4tb-8000.inc1.devtunnels.ms/api/v1';
+  import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 export interface ApiErrorResponse {
   message: string;
@@ -52,9 +51,10 @@ export const tenantStorage = {
   },
 };
 
-// Create main Axios instance
+// Create main Axios instance with cookie credentials enabled
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -102,9 +102,23 @@ const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue = [];
 };
 
-// Response interceptor with automatic token refresh
+// Response interceptor with automatic envelope unwrapping and token refresh
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (
+      response.data &&
+      typeof response.data === 'object' &&
+      'success' in response.data &&
+      'data' in response.data
+    ) {
+      const unwrapped = response.data.data;
+      if (response.data.pagination && Array.isArray(unwrapped)) {
+        (unwrapped as any).pagination = response.data.pagination;
+      }
+      response.data = unwrapped;
+    }
+    return response;
+  },
   async (error: AxiosError<any>) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 

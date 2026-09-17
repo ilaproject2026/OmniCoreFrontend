@@ -5,7 +5,7 @@ import { tokenStorage } from '../api/client';
 import { MOCK_USERS } from '../api/mockData';
 
 interface AuthContextType extends AuthSession {
-  login: (credentials: LoginCredentials) => Promise<{ mfaRequired?: boolean }>;
+  login: (credentials: LoginCredentials) => Promise<{ mfaRequired?: boolean; user?: User }>;
   verifyMfa: (code: string) => Promise<void>;
   logout: () => Promise<void>;
   switchUserRoleForDemo: (user: User) => void;
@@ -57,15 +57,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const res = await authApi.login(credentials);
-      if (res.mfaRequired) {
-        setPendingMfaEmail(credentials.email);
-        return { mfaRequired: true };
-      }
       setUser(res.user);
       setAccessToken(res.access);
       setRefreshToken(res.refresh);
       setPendingMfaEmail(null);
-      return { mfaRequired: false };
+      return { mfaRequired: false, user: res.user };
     } finally {
       setIsLoading(false);
     }

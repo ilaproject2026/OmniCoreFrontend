@@ -69,21 +69,32 @@ export function DataTable<T extends Record<string, any>>({
   const [visibleColumns, setVisibleColumns] = useState<string[]>(columns.map((c) => c.key));
   const [showColumnToggle, setShowColumnToggle] = useState(false);
 
+  // Normalize incoming data safely (handles arrays, { data: [...] }, { results: [...] })
+  const rawList = useMemo<T[]>(() => {
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === 'object') {
+      if (Array.isArray((data as any).data)) return (data as any).data;
+      if (Array.isArray((data as any).results)) return (data as any).results;
+    }
+    return [];
+  }, [data]);
+
   // Search filtering
   const filteredData = useMemo(() => {
-    if (!searchTerm.trim()) return data;
+    if (!searchTerm.trim()) return rawList;
     const term = searchTerm.toLowerCase();
-    return data.filter((row) =>
+    return rawList.filter((row) =>
       Object.values(row).some((val) => {
         if (val === null || val === undefined) return false;
         if (typeof val === 'object') return false;
         return String(val).toLowerCase().includes(term);
       })
     );
-  }, [data, searchTerm]);
+  }, [rawList, searchTerm]);
 
   // Sorting
   const sortedData = useMemo(() => {
+    if (!Array.isArray(filteredData)) return [];
     if (!sortKey) return filteredData;
     const col = columns.find((c) => c.key === sortKey);
     return [...filteredData].sort((a, b) => {
@@ -100,8 +111,9 @@ export function DataTable<T extends Record<string, any>>({
   }, [filteredData, sortKey, sortOrder, columns]);
 
   // Pagination
-  const totalPages = Math.ceil(sortedData.length / pageSize) || 1;
+  const totalPages = Math.ceil((sortedData?.length || 0) / pageSize) || 1;
   const paginatedData = useMemo(() => {
+    if (!Array.isArray(sortedData)) return [];
     const start = (currentPage - 1) * pageSize;
     return sortedData.slice(start, start + pageSize);
   }, [sortedData, currentPage, pageSize]);

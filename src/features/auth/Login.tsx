@@ -8,8 +8,8 @@ import { Lock, Mail, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login, isLoading } = useAuth();
-  const [email, setEmail] = useState('sarang@apexlogistics.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('admin@gmail.com');
+  const [password, setPassword] = useState('admin');
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -17,8 +17,8 @@ export const Login: React.FC = () => {
     setError(null);
     try {
       const res = await login({ email, password });
-      if (res.mfaRequired) {
-        navigate('/auth/mfa');
+      if (res.user?.isPlatformUser) {
+        navigate('/platform/dashboard');
       } else {
         navigate('/app/dashboard');
       }
@@ -29,11 +29,10 @@ export const Login: React.FC = () => {
 
   const handleQuickDemo = async (demoEmail: string, isSuperAdmin: boolean = false) => {
     setEmail(demoEmail);
+    setPassword('admin');
     try {
-      const res = await login({ email: demoEmail, password: 'password123' });
-      if (res.mfaRequired) {
-        navigate('/auth/mfa');
-      } else if (isSuperAdmin) {
+      const res = await login({ email: demoEmail, password: 'admin' });
+      if (isSuperAdmin || res.user?.isPlatformUser) {
         navigate('/platform/dashboard');
       } else {
         navigate('/app/dashboard');
@@ -104,11 +103,11 @@ export const Login: React.FC = () => {
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
-            onClick={() => handleQuickDemo('admin@omnicore.io', true)}
+            onClick={() => handleQuickDemo('admin@gmail.com', true)}
             className="flex flex-col text-left p-2.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 transition-colors cursor-pointer"
           >
             <span className="text-xs font-semibold text-purple-300">Super Admin</span>
-            <span className="text-[10px] text-slate-400">Platform Portal</span>
+            <span className="text-[10px] text-slate-400">admin@gmail.com</span>
           </button>
 
           <button
@@ -117,25 +116,25 @@ export const Login: React.FC = () => {
             className="flex flex-col text-left p-2.5 rounded-lg border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-colors cursor-pointer"
           >
             <span className="text-xs font-semibold text-blue-300">Tenant Admin</span>
-            <span className="text-[10px] text-slate-400">Apex Cold Chain</span>
+            <span className="text-[10px] text-slate-400">sarang@apexlogistics.com</span>
           </button>
 
           <button
             type="button"
-            onClick={() => handleQuickDemo('ops@apexlogistics.com', false)}
+            onClick={() => handleQuickDemo('operations@apexcargo.com', false)}
             className="flex flex-col text-left p-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors cursor-pointer"
           >
             <span className="text-xs font-semibold text-emerald-300">Operations Mgr</span>
-            <span className="text-[10px] text-slate-400">Fleet & Dispatch</span>
+            <span className="text-[10px] text-slate-400">operations@apexcargo.com</span>
           </button>
 
           <button
             type="button"
-            onClick={() => handleQuickDemo('finance@apexlogistics.com', false)}
+            onClick={() => handleQuickDemo('admin@omnicore.io', true)}
             className="flex flex-col text-left p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 transition-colors cursor-pointer"
           >
-            <span className="text-xs font-semibold text-amber-300">Finance User</span>
-            <span className="text-[10px] text-slate-400">Invoices & P&L</span>
+            <span className="text-xs font-semibold text-amber-300">Platform Super Admin</span>
+            <span className="text-[10px] text-slate-400">admin@omnicore.io</span>
           </button>
         </div>
       </div>

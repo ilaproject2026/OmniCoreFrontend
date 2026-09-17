@@ -5,8 +5,15 @@ import { MOCK_BOOKINGS, MOCK_TRIPS } from './mockData';
 export const tripsApi = {
   getBookings: async (params?: { status?: string }): Promise<Booking[]> => {
     try {
-      const response = await apiClient.get<Booking[]>('/trips/bookings/', { params });
-      return response.data;
+      const response = await apiClient.get<any>('/trips/bookings/', { params });
+      const raw = response.data?.data || response.data?.results || response.data;
+      if (Array.isArray(raw) && raw.length > 0) {
+        return raw;
+      }
+      if (params?.status && params.status !== 'all') {
+        return MOCK_BOOKINGS.filter((b) => b.status === params.status);
+      }
+      return MOCK_BOOKINGS;
     } catch {
       if (params?.status && params.status !== 'all') {
         return MOCK_BOOKINGS.filter((b) => b.status === params.status);
@@ -17,8 +24,9 @@ export const tripsApi = {
 
   createBooking: async (payload: Partial<Booking>): Promise<Booking> => {
     try {
-      const response = await apiClient.post<Booking>('/trips/bookings/', payload);
-      return response.data;
+      const response = await apiClient.post<any>('/trips/bookings/', payload);
+      const raw = response.data?.data || response.data;
+      return raw || payload;
     } catch {
       const newB: Booking = {
         id: 'bk_' + Math.random().toString(36).substring(2, 7),
@@ -45,8 +53,28 @@ export const tripsApi = {
 
   getTrips: async (params?: { status?: string; search?: string }): Promise<Trip[]> => {
     try {
-      const response = await apiClient.get<Trip[]>('/trips/', { params });
-      return response.data;
+      const response = await apiClient.get<any>('/trips/', { params });
+      const raw = response.data?.data || response.data?.results || response.data;
+      if (Array.isArray(raw) && raw.length > 0) {
+        return raw;
+      }
+      let list = [...MOCK_TRIPS];
+      if (params?.search) {
+        const q = params.search.toLowerCase();
+        list = list.filter(
+          (t) =>
+            t.tripCode.toLowerCase().includes(q) ||
+            t.customerName.toLowerCase().includes(q) ||
+            t.vehicleReg.toLowerCase().includes(q) ||
+            t.driverName.toLowerCase().includes(q) ||
+            t.origin.toLowerCase().includes(q) ||
+            t.destination.toLowerCase().includes(q)
+        );
+      }
+      if (params?.status && params.status !== 'all') {
+        list = list.filter((t) => t.status === params.status);
+      }
+      return list;
     } catch {
       let list = [...MOCK_TRIPS];
       if (params?.search) {
