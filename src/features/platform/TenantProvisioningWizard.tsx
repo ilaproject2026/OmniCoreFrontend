@@ -22,6 +22,8 @@ import {
   Sparkles,
   Loader2,
   ShieldCheck,
+  AlertTriangle,
+  XCircle,
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
 
@@ -32,6 +34,8 @@ export const TenantProvisioningWizard: React.FC = () => {
   const [provisionProgress, setProvisionProgress] = useState(0);
   const [provisionStageText, setProvisionStageText] = useState('');
   const [isProvisioned, setIsProvisioned] = useState(false);
+  const [provisionError, setProvisionError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]> | null>(null);
 
   // Form State across 8 Steps
   const [companyInfo, setCompanyInfo] = useState({
@@ -88,9 +92,31 @@ export const TenantProvisioningWizard: React.FC = () => {
   }, 0);
   const totalMonthlyMrr = pkgPrice + addonsPrice;
 
+  const validateStep = (step: number): boolean => {
+    if (step === 1) {
+      if (!companyInfo.name.trim()) {
+        alert('Please enter the Company / Fleet Operator Name.');
+        return false;
+      }
+      if (!companyInfo.primaryContactEmail.trim() && !adminUser.email.trim()) {
+        alert('Please enter a Commercial Contact Email.');
+        return false;
+      }
+    }
+    if (step === 6) {
+      if (!adminUser.email.trim() && !companyInfo.primaryContactEmail.trim()) {
+        alert('Please enter an Administrator Email address.');
+        return false;
+      }
+    }
+    return true;
+  };
+
   // Step 8: Animated provisioning sequence
   const startProvisioning = async () => {
     setIsSubmitting(true);
+    setProvisionError(null);
+    setFieldErrors(null);
     setCurrentStep(8);
 
     const stages = [
@@ -104,36 +130,82 @@ export const TenantProvisioningWizard: React.FC = () => {
     for (const stage of stages) {
       setProvisionProgress(stage.pct);
       setProvisionStageText(stage.text);
-      await new Promise((r) => setTimeout(r, 650));
+      await new Promise((r) => setTimeout(r, 450));
     }
 
-    // Persist to API/mock store
-    await platformApi.createTenant({
-      name: companyInfo.name,
-      slug: companyInfo.slug,
-      primaryContactName: companyInfo.primaryContactName,
-      primaryContactEmail: companyInfo.primaryContactEmail,
-      primaryContactPhone: companyInfo.primaryContactPhone,
-      country: companyInfo.country,
-      city: companyInfo.city,
-      address: companyInfo.address,
-      verticals: selectedVerticals,
-      status: 'active',
-      subscription: {
-        package: selectedPackage,
-        status: 'active',
-        billingCycle: subscriptionConfig.billingCycle,
-        startDate: new Date().toISOString(),
-        renewalDate: new Date(Date.now() + 30 * 86400000).toISOString(),
-        mrr: Math.round(totalMonthlyMrr),
-        currency: subscriptionConfig.currency,
-        enabledAddons: selectedAddons,
-        autoRenew: subscriptionConfig.autoRenew,
-      },
-    });
+    try {
+      const companyName = companyInfo.name.trim() || 'Apex Global Logistics';
+      const email =
+        companyInfo.primaryContactEmail.trim() ||
+        adminUser.email.trim() ||
+        `admin@${companyInfo.slug || 'apexlogistics'}.com`;
 
-    setIsSubmitting(false);
-    setIsProvisioned(true);
+      // Persist to API with both DRF backend required fields and frontend model fields
+      await platformApi.createTenant({
+        // DRF serializer required fields
+        company_name: companyName,
+        email: email,
+
+        // Model & frontend fields
+        name: companyName,
+        slug: companyInfo.slug || companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        primaryContactName: companyInfo.primaryContactName || `${adminUser.firstName} ${adminUser.lastName}`.trim(),
+        primary_contact_name: companyInfo.primaryContactName || `${adminUser.firstName} ${adminUser.lastName}`.trim(),
+        primaryContactEmail: email,
+        primary_contact_email: email,
+        primaryContactPhone: companyInfo.primaryContactPhone || adminUser.phone,
+        primary_contact_phone: companyInfo.primaryContactPhone || adminUser.phone,
+        phone: companyInfo.primaryContactPhone || adminUser.phone,
+        country: companyInfo.country || 'United States',
+        city: companyInfo.city,
+        address: companyInfo.address,
+        verticals: selectedVerticals,
+        status: 'active',
+
+        // Admin root user
+        first_name: adminUser.firstName || 'Root',
+        last_name: adminUser.lastName || 'Admin',
+        admin_email: adminUser.email || email,
+        admin_phone: adminUser.phone || companyInfo.primaryContactPhone,
+        admin_password: adminUser.tempPassword,
+        password: adminUser.tempPassword,
+        admin_user: {
+          first_name: adminUser.firstName || 'Root',
+          last_name: adminUser.lastName || 'Admin',
+          email: adminUser.email || email,
+          phone: adminUser.phone || companyInfo.primaryContactPhone,
+          password: adminUser.tempPassword,
+        },
+
+        // Subscription details
+        package: selectedPackage,
+        subscription: {
+          package: selectedPackage,
+          status: 'active',
+          billingCycle: subscriptionConfig.billingCycle,
+          startDate: new Date().toISOString(),
+          renewalDate: new Date(Date.now() + 30 * 86400000).toISOString(),
+          mrr: Math.round(totalMonthlyMrr),
+          currency: subscriptionConfig.currency,
+          enabledAddons: selectedAddons,
+          autoRenew: subscriptionConfig.autoRenew,
+        },
+      });
+
+      setIsSubmitting(false);
+      setIsProvisioned(true);
+    } catch (err: any) {
+      setIsSubmitting(false);
+      const apiErr = err.response?.data;
+      const errorMsg =
+        apiErr?.error?.message ||
+        apiErr?.message ||
+        err.message ||
+        'Tenant provisioning failed. Please check validation rules.';
+      const errorsObj = apiErr?.error?.fields || apiErr?.fields || apiErr?.errors || null;
+      setProvisionError(errorMsg);
+      setFieldErrors(errorsObj);
+    }
   };
 
   const stepTitles = [
@@ -621,7 +693,53 @@ export const TenantProvisioningWizard: React.FC = () => {
         {/* STEP 8: Provision Tenant Execution */}
         {currentStep === 8 && (
           <div className="py-8 text-center space-y-6">
-            {!isProvisioned ? (
+            {provisionError ? (
+              <div className="max-w-md mx-auto space-y-4">
+                <div className="flex justify-center">
+                  <div className="h-16 w-16 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 shadow-xl">
+                    <AlertTriangle className="h-9 w-9" />
+                  </div>
+                </div>
+
+                <h3 className="text-xl font-bold text-white">Tenant Provisioning Failed</h3>
+                <p className="text-xs text-red-300 bg-red-950/40 border border-red-800/40 p-3 rounded-lg">
+                  {provisionError}
+                </p>
+
+                {fieldErrors && (
+                  <div className="text-left bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2 text-xs">
+                    <p className="font-bold text-slate-200">Validation Errors:</p>
+                    {Object.entries(fieldErrors).map(([field, msgs]) => (
+                      <div key={field} className="flex flex-col sm:flex-row sm:items-baseline gap-1 text-[11px]">
+                        <span className="font-mono font-bold text-red-400 capitalize">{field.replace('_', ' ')}:</span>
+                        <span className="text-slate-300">{Array.isArray(msgs) ? msgs.join(' ') : String(msgs)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="pt-2 flex items-center justify-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setProvisionError(null);
+                      setFieldErrors(null);
+                      setCurrentStep(1);
+                    }}
+                  >
+                    Edit Company & Email Info
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={startProvisioning}
+                  >
+                    Retry Provisioning
+                  </Button>
+                </div>
+              </div>
+            ) : !isProvisioned ? (
               <div className="max-w-md mx-auto space-y-4">
                 <div className="flex justify-center">
                   <div className="h-16 w-16 rounded-2xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shadow-xl">

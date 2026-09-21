@@ -29,6 +29,8 @@ import {
   PackageCheck,
   Bus,
   Globe,
+  Lock,
+  KeyRound,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Badge } from '../common/Badge';
@@ -53,6 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const platformNav = [
     { label: 'Platform Overview', path: '/platform/dashboard', icon: LayoutDashboard },
     { label: 'Tenants & Provisioning', path: '/platform/tenants', icon: Building2 },
+    { label: 'Role Permissions', path: '/platform/roles', icon: KeyRound },
     { label: 'Packages & Tiers', path: '/platform/packages', icon: Package },
     { label: 'Features & Add-ons', path: '/platform/features', icon: Layers },
     { label: 'Subscriptions', path: '/platform/subscriptions', icon: Receipt },
@@ -61,126 +64,135 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { label: 'Platform Audit Log', path: '/platform/audit', icon: ShieldCheck },
   ];
 
-  // Tenant Operations Navigation Items (Dynamically filtered by entitlements & permissions)
+  // Tenant Operations Navigation Items (All functions always present, permission-aware indicators)
   const tenantNav = [
     {
       label: 'Operations Hub',
       path: '/app/dashboard',
       icon: LayoutDashboard,
-      show: true,
+      isAccessible: true,
     },
     {
       label: 'Fleet Management',
       path: '/app/fleet',
       icon: Truck,
-      show: true,
       badge: `${tenant.vehicleCount}`,
+      isAccessible: can('fleet.view'),
+      requiredPermission: 'fleet.view',
     },
     {
       label: 'Driver Directory',
       path: '/app/drivers',
       icon: Users,
-      show: true,
+      isAccessible: can('drivers.view'),
+      requiredPermission: 'drivers.view',
     },
     {
       label: 'Bookings & Dispatch',
       path: '/app/trips',
       icon: Navigation,
-      show: true,
       badge: `${tenant.activeTripsCount} live`,
       badgeVariant: 'success' as const,
+      isAccessible: can('trips.view'),
+      requiredPermission: 'trips.view',
     },
     {
       label: 'Courier & Express',
       path: '/app/courier',
       icon: PackageCheck,
-      show: tenant.verticals.includes('courier_express') || tenant.verticals.includes('all_verticals') || packageTier === 'enterprise',
       badge: 'AWB Hub',
       badgeVariant: 'success' as const,
+      isAccessible: can('courier.view'),
+      requiredPermission: 'courier.view',
     },
     {
       label: 'Corporate Shuttle',
       path: '/app/shuttle',
       icon: Bus,
-      show: tenant.verticals.includes('corporate_shuttle') || tenant.verticals.includes('all_verticals') || packageTier === 'enterprise',
       badge: 'Routes',
+      isAccessible: can('shuttle.view'),
+      requiredPermission: 'shuttle.view',
     },
     {
       label: 'Contracts & Tenders',
       path: '/app/contracts',
       icon: FileText,
-      // Enabled if addon or corporate/enterprise
-      show: enabledAddons.includes('addon_contracts') || ['corporate', 'enterprise'].includes(packageTier),
+      isAccessible: can('contracts.view'),
+      requiredPermission: 'contracts.view',
     },
     {
       label: 'Workshop & Maintenance',
       path: '/app/maintenance',
       icon: Wrench,
-      // Enabled on standard, corporate, enterprise
-      show: packageTier !== 'basic',
+      isAccessible: can('maintenance.view'),
+      requiredPermission: 'maintenance.view',
     },
     {
       label: 'Warehouse & Spare Parts',
       path: '/app/warehouse',
       icon: Boxes,
-      // Enabled if addon or corporate/enterprise
-      show: enabledAddons.includes('addon_warehouse') || ['corporate', 'enterprise'].includes(packageTier),
+      isAccessible: can('warehouse.view'),
+      requiredPermission: 'warehouse.view',
     },
     {
       label: 'CRM & Pipeline',
       path: '/app/crm',
       icon: UserCheck,
-      // Enabled on corporate & enterprise
-      show: ['corporate', 'enterprise'].includes(packageTier),
+      isAccessible: can('crm.view'),
+      requiredPermission: 'crm.view',
     },
     {
       label: 'Finance & Invoicing',
       path: '/app/finance',
       icon: DollarSign,
-      // Permission-gated: only if user has finance permission
-      show: can('finance.view'),
+      isAccessible: can('finance.view'),
+      requiredPermission: 'finance.view',
     },
     {
       label: 'HR & Personnel',
       path: '/app/hr',
       icon: Users,
-      // Permission-gated: only if user has hr permission
-      show: can('hr.view'),
+      isAccessible: can('hr.view'),
+      requiredPermission: 'hr.view',
     },
     {
       label: 'Insurance & Claims',
       path: '/app/insurance',
       icon: ShieldCheck,
-      show: true,
+      isAccessible: can('insurance.view'),
+      requiredPermission: 'insurance.view',
     },
     {
       label: 'Marketing Campaigns',
       path: '/app/marketing',
       icon: Megaphone,
-      show: ['corporate', 'enterprise'].includes(packageTier),
+      isAccessible: can('marketing.view'),
+      requiredPermission: 'marketing.view',
     },
     {
       label: 'Public Booking Portal',
       path: `/public/${tenant.slug || 'apex-global'}`,
       icon: Globe,
-      show: true,
       badge: 'Live',
+      isAccessible: true,
     },
     {
       label: 'Reports & Analytics',
       path: '/app/reports',
       icon: FileBarChart,
-      show: true,
+      isAccessible: can('reports.view'),
+      requiredPermission: 'reports.view',
     },
     {
       label: 'Tenant Settings',
       path: '/app/settings',
       icon: Settings,
-      show: can('settings.manage') || user?.tenantRole === 'tenant_admin',
+      isAccessible: can('settings.manage') || user?.tenantRole === 'tenant_admin',
+      requiredPermission: 'settings.manage',
     },
   ];
 
-  const items = isPlatform ? platformNav : tenantNav.filter((i) => i.show);
+  const items = isPlatform ? platformNav : tenantNav;
 
   return (
     <>
@@ -257,30 +269,51 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {items.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname.startsWith(item.path);
+            const isAccessible = (item as any).isAccessible !== false;
 
             return (
               <NavLink
                 key={item.path}
                 to={item.path}
                 onClick={onCloseMobile}
-                title={collapsed ? item.label : undefined}
+                title={
+                  collapsed
+                    ? `${item.label}${!isAccessible ? ' (Role Restricted)' : ''}`
+                    : undefined
+                }
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium transition-all group relative',
                   isActive
                     ? 'bg-blue-600 text-white font-semibold shadow-sm shadow-blue-500/20'
-                    : 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-200'
+                    : isAccessible
+                    ? 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-200'
+                    : 'text-slate-500 hover:bg-slate-800/40 hover:text-slate-300'
                 )}
               >
                 <Icon
                   className={cn(
                     'h-4 w-4 shrink-0 transition-colors',
-                    isActive ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'
+                    isActive
+                      ? 'text-white'
+                      : isAccessible
+                      ? 'text-slate-400 group-hover:text-blue-400'
+                      : 'text-slate-500'
                   )}
                 />
                 {!collapsed && (
                   <>
-                    <span className="truncate flex-1">{item.label}</span>
-                    {(item as any).badge ? (
+                    <span className={cn('truncate flex-1', !isAccessible && 'text-slate-400')}>
+                      {item.label}
+                    </span>
+                    {!isAccessible ? (
+                      <span
+                        title="Permission required for your role"
+                        className="flex items-center gap-1 rounded bg-slate-800/80 px-1.5 py-0.5 text-[9px] font-medium text-amber-400/90 border border-amber-500/20 shrink-0"
+                      >
+                        <Lock className="h-2.5 w-2.5" />
+                        <span>Restricted</span>
+                      </span>
+                    ) : (item as any).badge ? (
                       <span
                         className={cn(
                           'rounded-full px-1.5 py-0.2 text-[10px] font-bold shrink-0',

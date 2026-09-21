@@ -11,9 +11,11 @@ import { ProtectedRoute } from '../components/guards/ProtectedRoute';
 import { TenantGuard } from '../components/guards/TenantGuard';
 import { PermissionGuard } from '../components/guards/PermissionGuard';
 import { FeatureGuard } from '../components/guards/FeatureGuard';
+import { RoleAccessRestricted } from '../components/feedback/RoleAccessRestricted';
 
 // Auth Pages
 import { Login } from '../features/auth/Login';
+import { Register } from '../features/auth/Register';
 import { MfaVerification } from '../features/auth/MfaVerification';
 import { ForgotPassword } from '../features/auth/ForgotPassword';
 import { ResetPassword } from '../features/auth/ResetPassword';
@@ -25,7 +27,10 @@ import { NotFound } from '../features/auth/NotFound';
 import { PlatformDashboard } from '../features/platform/PlatformDashboard';
 import { TenantList } from '../features/platform/TenantList';
 import { PackageManagement } from '../features/platform/PackageManagement';
+import { FeaturesAndAddons } from '../features/platform/FeaturesAndAddons';
 import { SubscriptionsList } from '../features/platform/SubscriptionsList';
+import { SalesAndGrowth } from '../features/platform/SalesAndGrowth';
+import { SupportTickets } from '../features/platform/SupportTickets';
 import { PlatformAudit } from '../features/platform/PlatformAudit';
 
 // Tenant Operations Pages
@@ -49,21 +54,24 @@ import { TenantSettings } from '../features/settings/TenantSettings';
 import { CourierDashboard } from '../features/courier/CourierDashboard';
 import { ShuttleDashboard } from '../features/shuttle/ShuttleDashboard';
 import { CustomFeatureOverrides } from '../features/platform/CustomFeatureOverrides';
+import { RolePermissionsMatrix } from '../features/platform/RolePermissionsMatrix';
 import { PublicPortalLayout } from '../features/public/PublicPortalLayout';
 import { PublicHome } from '../features/public/PublicHome';
 import { PublicTracking } from '../features/public/PublicTracking';
 import { PublicBooking } from '../features/public/PublicBooking';
+import { LandingPage } from '../features/landing/LandingPage';
 
 export const AppRoutes: React.FC = () => {
   return (
     <Routes>
-      {/* Root redirect */}
-      <Route path="/" element={<Navigate to="/app/dashboard" replace />} />
+      {/* Root SaaS Main Landing Page */}
+      <Route path="/" element={<LandingPage />} />
 
       {/* A. Authentication Routes */}
       <Route path="/auth" element={<AuthLayout />}>
         <Route index element={<Navigate to="/auth/login" replace />} />
         <Route path="login" element={<Login />} />
+        <Route path="register" element={<Register />} />
         <Route path="mfa" element={<MfaVerification />} />
         <Route path="forgot-password" element={<ForgotPassword />} />
         <Route path="reset-password" element={<ResetPassword />} />
@@ -87,11 +95,12 @@ export const AppRoutes: React.FC = () => {
         <Route path="dashboard" element={<PlatformDashboard />} />
         <Route path="tenants" element={<TenantList />} />
         <Route path="tenants/:id/features" element={<CustomFeatureOverrides />} />
+        <Route path="roles" element={<RolePermissionsMatrix />} />
         <Route path="packages" element={<PackageManagement />} />
-        <Route path="features" element={<PackageManagement />} />
+        <Route path="features" element={<FeaturesAndAddons />} />
         <Route path="subscriptions" element={<SubscriptionsList />} />
-        <Route path="sales" element={<SubscriptionsList />} />
-        <Route path="support" element={<PlatformAudit />} />
+        <Route path="sales" element={<SalesAndGrowth />} />
+        <Route path="support" element={<SupportTickets />} />
         <Route path="audit" element={<PlatformAudit />} />
       </Route>
 
@@ -114,37 +123,49 @@ export const AppRoutes: React.FC = () => {
         <Route path="courier" element={<CourierDashboard />} />
         <Route path="shuttle" element={<ShuttleDashboard />} />
 
-        {/* Feature/Entitlement Protected Routes */}
+        {/* Entitlement & Permission Protected Routes */}
         <Route
           path="contracts"
           element={
-            <FeatureGuard
-              addon="addon_contracts"
-              fallback={<Unauthorized />}
+            <PermissionGuard
+              permission="contracts.view"
+              fallback={<RoleAccessRestricted moduleName="Contracts & Tenders" requiredPermission="contracts.view" />}
             >
               <ContractsHub />
-            </FeatureGuard>
+            </PermissionGuard>
           }
         />
         <Route path="maintenance" element={<MaintenanceHub />} />
         <Route
           path="warehouse"
           element={
-            <FeatureGuard
-              addon="addon_warehouse"
-              fallback={<Unauthorized />}
+            <PermissionGuard
+              permission="warehouse.view"
+              fallback={<RoleAccessRestricted moduleName="Warehouse & Spare Parts" requiredPermission="warehouse.view" />}
             >
               <WarehouseHub />
-            </FeatureGuard>
+            </PermissionGuard>
           }
         />
-        <Route path="crm" element={<CrmHub />} />
+        <Route
+          path="crm"
+          element={
+            <PermissionGuard
+              permission="crm.view"
+              fallback={<RoleAccessRestricted moduleName="CRM & Pipeline" requiredPermission="crm.view" />}
+            >
+              <CrmHub />
+            </PermissionGuard>
+          }
+        />
 
-        {/* Permission Protected Routes */}
         <Route
           path="finance"
           element={
-            <PermissionGuard permission="finance.view" fallback={<Unauthorized />}>
+            <PermissionGuard
+              permission="finance.view"
+              fallback={<RoleAccessRestricted moduleName="Finance & Invoicing" requiredPermission="finance.view" />}
+            >
               <FinanceHub />
             </PermissionGuard>
           }
@@ -152,17 +173,40 @@ export const AppRoutes: React.FC = () => {
         <Route
           path="hr"
           element={
-            <PermissionGuard permission="hr.view" fallback={<Unauthorized />}>
+            <PermissionGuard
+              permission="hr.view"
+              fallback={<RoleAccessRestricted moduleName="HR & Personnel" requiredPermission="hr.view" />}
+            >
               <HrHub />
             </PermissionGuard>
           }
         />
 
         <Route path="insurance" element={<InsuranceHub />} />
-        <Route path="marketing" element={<MarketingHub />} />
+        <Route
+          path="marketing"
+          element={
+            <PermissionGuard
+              permission="marketing.view"
+              fallback={<RoleAccessRestricted moduleName="Marketing Campaigns" requiredPermission="marketing.view" />}
+            >
+              <MarketingHub />
+            </PermissionGuard>
+          }
+        />
         <Route path="reports" element={<ReportsHub />} />
         <Route path="notifications" element={<NotificationCenter />} />
-        <Route path="settings" element={<TenantSettings />} />
+        <Route
+          path="settings"
+          element={
+            <PermissionGuard
+              permission="settings.manage"
+              fallback={<RoleAccessRestricted moduleName="Tenant Settings" requiredPermission="settings.manage" />}
+            >
+              <TenantSettings />
+            </PermissionGuard>
+          }
+        />
       </Route>
 
       {/* D. Tenant Public Mini-Website & Booking Portal */}

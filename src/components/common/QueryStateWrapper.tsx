@@ -39,15 +39,47 @@ export const QueryStateWrapper: React.FC<QueryStateWrapperProps> = ({
   children,
   className,
 }) => {
-  // Loading State
-  if (isLoading) {
+  const isNetworkError = Boolean(
+    isError &&
+      (error instanceof Error
+        ? error.message.toLowerCase().includes('network') ||
+          error.message.toLowerCase().includes('timeout') ||
+          error.message.toLowerCase().includes('connection') ||
+          error.message.toLowerCase().includes('failed to fetch') ||
+          (error as any).code === 'ERR_NETWORK' ||
+          (error as any).code === 'NETWORK_ERROR'
+        : typeof error === 'object' && error !== null
+        ? String((error as any).code || (error as any).message || '').toLowerCase().includes('network')
+        : false)
+  );
+
+  // Loading State or Backend Inactive State (render skeleton loader)
+  if (isLoading || isNetworkError) {
     return (
       <div className={cn('w-full space-y-3', className)}>
-        <div className="flex items-center justify-center gap-3 py-8 text-slate-400">
-          <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-          <span className="text-xs font-medium">{loadingMessage}</span>
-        </div>
-        <div className="space-y-2">
+        {isNetworkError ? (
+          <div className="flex items-center justify-between px-3.5 py-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-300">
+            <div className="flex items-center gap-2.5">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+              <span>Connecting to OmniCore backend service... (Live backend inactive)</span>
+            </div>
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="text-[11px] font-semibold text-blue-400 hover:text-white underline cursor-pointer"
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center gap-3 py-6 text-slate-400">
+            <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+            <span className="text-xs font-medium">{loadingMessage}</span>
+          </div>
+        )}
+        <div className="space-y-2.5">
           {Array.from({ length: skeletonCount }).map((_, idx) => (
             <div
               key={idx}
@@ -62,7 +94,7 @@ export const QueryStateWrapper: React.FC<QueryStateWrapperProps> = ({
     );
   }
 
-  // Error State
+  // Error State (non-network specific errors, e.g. 403, 404, 500)
   if (isError) {
     const errorMessage =
       error instanceof Error

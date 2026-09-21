@@ -2,6 +2,7 @@ import React from 'react';
 import { Card } from './Card';
 import { cn } from '../../lib/utils';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Skeleton } from '../feedback/Skeleton';
 
 export interface StatCardProps {
   title: string;
@@ -18,6 +19,7 @@ export interface StatCardProps {
   accentColor?: 'blue' | 'emerald' | 'amber' | 'purple' | 'cyan' | 'rose';
   className?: string;
   onClick?: () => void;
+  isLoading?: boolean;
 }
 
 export const StatCard: React.FC<StatCardProps> = ({
@@ -31,6 +33,7 @@ export const StatCard: React.FC<StatCardProps> = ({
   accentColor = 'blue',
   className,
   onClick,
+  isLoading = false,
 }) => {
   const accentClasses = {
     blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
@@ -40,6 +43,24 @@ export const StatCard: React.FC<StatCardProps> = ({
     cyan: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
     rose: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
   };
+
+  if (isLoading) {
+    return (
+      <Card className={cn('relative overflow-hidden cursor-default', className)}>
+        <div className="flex items-start justify-between">
+          <div className="space-y-2.5 w-full pr-4">
+            <Skeleton className="h-3 w-24 bg-slate-800/90" />
+            <Skeleton className="h-7 w-32 bg-slate-800/90" />
+            <Skeleton className="h-3 w-36 bg-slate-800/60" />
+          </div>
+          <Skeleton className="h-10 w-10 rounded-lg shrink-0 bg-slate-800/80" />
+        </div>
+        <div className="mt-3 pt-2 border-t border-slate-800/60">
+          <Skeleton className="h-3 w-20 bg-slate-800/50" />
+        </div>
+      </Card>
+    );
+  }
 
   const renderIcon = () => {
     if (!icon) return null;

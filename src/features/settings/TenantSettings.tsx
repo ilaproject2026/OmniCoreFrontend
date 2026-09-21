@@ -8,6 +8,8 @@ import { Select } from '../../components/common/Select';
 import { Tabs } from '../../components/common/Tabs';
 import { ADDONS, VERTICALS, PACKAGES } from '../../config/constants';
 import { PackageTier, AddonKey } from '../../types';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   Building2,
   Package,
@@ -17,14 +19,21 @@ import {
   Sparkles,
   KeyRound,
   Users,
+  Crown,
+  Briefcase,
+  Truck,
+  ArrowRight,
 } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
 import { PackageUpgradeModal } from '../platform/PackageUpgradeModal';
 
 export const TenantSettings: React.FC = () => {
-  const { tenant, packageTier, enabledAddons, setPackageTier, toggleAddon } = useTenant();
+  const { user } = useAuth();
+  const { tenant, packageTier, enabledAddons, setPackageTier, toggleAddon, customRolePermissions } = useTenant();
   const [activeTab, setActiveTab] = useState('organization');
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+
+  const isSuperAdmin = Boolean(user?.isPlatformUser || user?.platformRole === 'super_admin');
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -211,33 +220,95 @@ export const TenantSettings: React.FC = () => {
 
       {/* Tab 4: Security */}
       {activeTab === 'security' && (
-        <Card className="p-6 space-y-4 text-xs">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-            <div>
-              <h3 className="font-semibold text-sm text-white">Security, RBAC & MFA</h3>
-              <p className="text-slate-400 text-[11px]">Authentication requirements and session security policies</p>
+        <div className="space-y-4 text-xs">
+          {/* Super Admin Control Callout */}
+          <div className="p-4 rounded-xl border border-purple-500/30 bg-purple-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-500/20 text-purple-300">
+                <Crown className="h-5 w-5" />
+              </div>
+              <div>
+                <span className="font-bold text-white text-xs block">Platform Role Hierarchy & RBAC Matrix</span>
+                <span className="text-slate-400 text-[11px]">
+                  Super Admin has supreme authority to customize permissions for Manager, Fleet, HR, and other roles.
+                </span>
+              </div>
             </div>
-            <ShieldCheck className="h-5 w-5 text-emerald-400" />
+            {isSuperAdmin ? (
+              <Link to="/platform/roles">
+                <Button variant="primary" size="sm" className="bg-purple-600 hover:bg-purple-500 text-xs font-semibold shrink-0" rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+                  Customize Role Permissions
+                </Button>
+              </Link>
+            ) : (
+              <Badge variant="purple" size="sm">Super Admin Configured</Badge>
+            )}
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 rounded-lg border border-slate-800 bg-[#0f172a]">
-              <div>
-                <span className="font-semibold text-white block">Enforce Multi-Factor Authentication (MFA)</span>
-                <span className="text-[11px] text-slate-400">Requires TOTP token for all tenant administrative users</span>
+          {/* Role Hierarchy Breakdown */}
+          <Card className="p-5 space-y-3">
+            <h4 className="font-bold text-white text-xs">Tenant Role Permissions Hierarchy</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="p-3 rounded-lg border border-purple-500/30 bg-slate-900/60 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-purple-300 text-xs flex items-center gap-1">
+                    <Crown className="h-3.5 w-3.5 text-amber-400" /> Platform Super Admin
+                  </span>
+                  <Badge variant="purple" size="xs">Supreme (*)</Badge>
+                </div>
+                <p className="text-[10px] text-slate-400">Controls everything across platform and tenants. Can set customized permissions.</p>
               </div>
-              <Badge variant="success">Enforced</Badge>
+
+              <div className="p-3 rounded-lg border border-blue-500/30 bg-slate-900/60 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-blue-300 text-xs flex items-center gap-1">
+                    <Building2 className="h-3.5 w-3.5 text-blue-400" /> Tenant Admin
+                  </span>
+                  <Badge variant="info" size="xs">Full Tenant (*)</Badge>
+                </div>
+                <p className="text-[10px] text-slate-400">Manages fleet, drivers, dispatch, warehouse, finance, hr, and settings under Super Admin.</p>
+              </div>
+
+              <div className="p-3 rounded-lg border border-emerald-500/30 bg-slate-900/60 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-emerald-300 text-xs flex items-center gap-1">
+                    <Briefcase className="h-3.5 w-3.5 text-emerald-400" /> Operations Manager
+                  </span>
+                  <Badge variant="success" size="xs">Role Scoped</Badge>
+                </div>
+                <p className="text-[10px] text-slate-400">Finance, HR, insurance claims, marketing campaigns, and reports analytics.</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6 space-y-4 text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="font-semibold text-sm text-white">Security, RBAC & MFA</h3>
+                <p className="text-slate-400 text-[11px]">Authentication requirements and session security policies</p>
+              </div>
+              <ShieldCheck className="h-5 w-5 text-emerald-400" />
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-lg border border-slate-800 bg-[#0f172a]">
-              <div>
-                <span className="font-semibold text-white block">Session Token Refresh Window</span>
-                <span className="text-[11px] text-slate-400">JWT access token expires every 15 minutes; auto-refreshed via DRF interceptor</span>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 rounded-lg border border-slate-800 bg-[#0f172a]">
+                <div>
+                  <span className="font-semibold text-white block">Enforce Multi-Factor Authentication (MFA)</span>
+                  <span className="text-[11px] text-slate-400">Requires TOTP token for all tenant administrative users</span>
+                </div>
+                <Badge variant="success">Enforced</Badge>
               </div>
-              <span className="font-mono text-slate-300">15m / 7d</span>
+
+              <div className="flex items-center justify-between p-3 rounded-lg border border-slate-800 bg-[#0f172a]">
+                <div>
+                  <span className="font-semibold text-white block">Session Token Refresh Window</span>
+                  <span className="text-[11px] text-slate-400">JWT access token expires every 15 minutes; auto-refreshed via DRF interceptor</span>
+                </div>
+                <span className="font-mono text-slate-300">15m / 7d</span>
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+        </div>
       )}
 
       <PackageUpgradeModal

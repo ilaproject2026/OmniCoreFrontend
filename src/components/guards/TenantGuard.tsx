@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Navigate, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useTenant } from '../../contexts/TenantContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { MOCK_TENANTS } from '../../api/mockData';
+import { platformApi } from '../../api/platform.api';
 import { formatCurrency } from '../../lib/utils';
 import {
   AlertTriangle,
@@ -30,13 +31,19 @@ export const TenantGuard: React.FC<TenantGuardProps> = ({ children }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isReactivating, setIsReactivating] = useState(false);
 
+  const { data: tenants = [] } = useQuery({
+    queryKey: ['platformTenants'],
+    queryFn: () => platformApi.getTenants(),
+    enabled: tenant?.status === 'suspended',
+  });
+
   if (!tenant) {
     return <Navigate to="/auth/login" replace />;
   }
 
   if (tenant.status === 'suspended') {
-    const activeTenants = MOCK_TENANTS.filter((t) => t.status === 'active');
-    const defaultApex = MOCK_TENANTS[0];
+    const activeTenants = tenants.filter((t) => t.status === 'active');
+    const defaultActive = activeTenants[0];
 
     const handleReactivate = () => {
       setIsReactivating(true);
@@ -121,15 +128,17 @@ export const TenantGuard: React.FC<TenantGuardProps> = ({ children }) => {
                 <span>Reactivate Tenant (Demo Mode)</span>
               </button>
 
-              {/* Switch back to Apex Logistics */}
-              <button
-                onClick={() => switchTenant(defaultApex)}
-                className="flex items-center justify-center gap-2 w-full rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700/80 py-2.5 px-4 text-sm font-medium text-slate-200 hover:text-white transition-all cursor-pointer"
-              >
-                <Building2 className="h-4 w-4 text-blue-400" />
-                <span>Switch to Active Tenant (Apex Global Logistics)</span>
-                <ArrowRight className="h-4 w-4 ml-auto text-slate-400" />
-              </button>
+              {/* Switch back to Active Logistics */}
+              {defaultActive && (
+                <button
+                  onClick={() => switchTenant(defaultActive)}
+                  className="flex items-center justify-center gap-2 w-full rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700/80 py-2.5 px-4 text-sm font-medium text-slate-200 hover:text-white transition-all cursor-pointer"
+                >
+                  <Building2 className="h-4 w-4 text-blue-400" />
+                  <span>Switch to Active Tenant ({defaultActive.name})</span>
+                  <ArrowRight className="h-4 w-4 ml-auto text-slate-400" />
+                </button>
+              )}
 
               {/* Tenant Switcher Dropdown */}
               <div className="relative">
@@ -139,7 +148,7 @@ export const TenantGuard: React.FC<TenantGuardProps> = ({ children }) => {
                 >
                   <span className="flex items-center gap-2">
                     <Layers className="h-3.5 w-3.5 text-slate-400" />
-                    Select Other Organization ({MOCK_TENANTS.length} available)
+                    Select Other Organization ({tenants.length} available)
                   </span>
                   <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
                 </button>
@@ -151,7 +160,7 @@ export const TenantGuard: React.FC<TenantGuardProps> = ({ children }) => {
                       <p className="px-2 py-1 text-[10px] font-semibold uppercase text-slate-400">
                         Choose Multi-Tenant Context
                       </p>
-                      {MOCK_TENANTS.map((t) => (
+                      {tenants.map((t) => (
                         <button
                           key={t.id}
                           onClick={() => {

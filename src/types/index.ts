@@ -832,6 +832,38 @@ export interface AuditLog {
   ipAddress: string;
 }
 
+// ----------------- Platform Support & Helpdesk Tickets -----------------
+export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
+export type TicketStatus = 'open' | 'in_progress' | 'waiting_tenant' | 'resolved' | 'closed';
+export type TicketCategory =
+  | 'billing'
+  | 'telematics_gps'
+  | 'integration_api'
+  | 'user_access'
+  | 'bug_report'
+  | 'sla_breach'
+  | 'feature_request';
+
+export interface SupportTicket {
+  id: string;
+  ticketNumber: string;
+  tenantId: string;
+  tenantName: string;
+  requesterName: string;
+  requesterEmail: string;
+  subject: string;
+  description: string;
+  category: TicketCategory;
+  priority: TicketPriority;
+  status: TicketStatus;
+  assignedTo?: string;
+  createdAt: string;
+  updatedAt: string;
+  slaTargetHours: number;
+  slaRemainingHours?: number;
+  resolutionNote?: string;
+}
+
 // ============================================================
 // COURIER & EXPRESS DELIVERY SERVICES MODELS
 // ============================================================

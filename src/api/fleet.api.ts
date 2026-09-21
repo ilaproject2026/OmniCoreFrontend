@@ -1,6 +1,5 @@
 import { apiClient } from './client';
 import { Vehicle, VehicleStatus, VehicleDocument } from '../types';
-import { MOCK_VEHICLES } from './mockData';
 
 // Django Backend TextChoices Enums & Translators
 export const mapStatusToBackend = (status?: string): 'AVAILABLE' | 'ON_TRIP' | 'MAINTENANCE' | 'INACTIVE' => {
@@ -159,46 +158,16 @@ export const fleetApi = {
       queryParams.branch_id = params.branchId;
     }
 
-    try {
-      const response = await apiClient.get<any>('/fleet/vehicles/', { params: queryParams });
-      const rawList = Array.isArray(response.data)
-        ? response.data
-        : (response.data?.results || response.data?.data || []);
-      return rawList.map(normalizeVehicleResponse);
-    } catch {
-      let list = [...MOCK_VEHICLES];
-      if (params?.branchId && params.branchId !== 'all') {
-        list = list.filter((v) => v.branchId === params.branchId);
-      }
-      if (params?.search) {
-        const q = params.search.toLowerCase();
-        list = list.filter(
-          (v) =>
-            v.registrationNumber.toLowerCase().includes(q) ||
-            v.make.toLowerCase().includes(q) ||
-            v.model.toLowerCase().includes(q) ||
-            (v.assignedDriverName && v.assignedDriverName.toLowerCase().includes(q))
-        );
-      }
-      if (params?.status && params.status !== 'all') {
-        list = list.filter((v) => v.status === params.status);
-      }
-      if (params?.vertical && params.vertical !== 'all') {
-        list = list.filter((v) => v.vertical === params.vertical);
-      }
-      return list;
-    }
+    const response = await apiClient.get<any>('/fleet/vehicles/', { params: queryParams });
+    const rawList = Array.isArray(response.data)
+      ? response.data
+      : (response.data?.results || response.data?.data || []);
+    return rawList.map(normalizeVehicleResponse);
   },
 
   getVehicleById: async (id: string): Promise<Vehicle> => {
-    try {
-      const response = await apiClient.get<any>(`/fleet/vehicles/${id}/`);
-      return normalizeVehicleResponse(response.data);
-    } catch {
-      const v = MOCK_VEHICLES.find((item) => item.id === id);
-      if (!v) throw new Error('Vehicle not found');
-      return v;
-    }
+    const response = await apiClient.get<any>(`/fleet/vehicles/${id}/`);
+    return normalizeVehicleResponse(response.data);
   },
 
   createVehicle: async (payload: Partial<Vehicle>): Promise<Vehicle> => {
@@ -207,7 +176,6 @@ export const fleetApi = {
       const response = await apiClient.post<any>('/fleet/vehicles/', backendData);
       return normalizeVehicleResponse(response.data);
     } catch (err: any) {
-      // If the backend sent a validation error (e.g. 400 Bad Request), rethrow it with a clear message
       if (err?.status === 400 || err?.response?.status === 400 || err?.errors || err?.code === 'VALIDATION_ERROR') {
         const backendMessage =
           err?.response?.data?.error?.message ||
@@ -220,33 +188,7 @@ export const fleetApi = {
         (errorToThrow as any).fields = fieldErrors;
         throw errorToThrow;
       }
-
-      // Offline / fallback mock mode when backend is unreachable
-      const newV: Vehicle = {
-        id: 'veh_' + Math.random().toString(36).substring(2, 7),
-        tenantId: 'tenant_apex',
-        branchId: payload.branchId || 'branch_chicago',
-        branchName: payload.branchName || 'Chicago Central Logistics Depot',
-        registrationNumber: payload.registrationNumber || 'IL-NEW-99',
-        make: payload.make || 'Freightliner',
-        model: payload.model || 'Cascadia',
-        year: payload.year || 2024,
-        type: payload.type || 'heavy_truck',
-        vertical: payload.vertical || 'freight_logistics',
-        status: payload.status || 'available',
-        vin: payload.vin || '1FUJBBCK4NL' + Math.floor(100000 + Math.random() * 900000),
-        fuelType: payload.fuelType || 'diesel',
-        odometerKm: payload.odometerKm !== undefined && !isNaN(payload.odometerKm) ? payload.odometerKm : 0,
-        fuelLevelPercent: 100,
-        capacityKg: payload.capacityKg || 25000,
-        purchasePrice: payload.purchasePrice || 145000,
-        purchaseDate: payload.purchaseDate || new Date().toISOString().split('T')[0],
-        financingStatus: payload.financingStatus || 'financed',
-        documents: [],
-        totalTripsCount: 0,
-      };
-      MOCK_VEHICLES.unshift(newV);
-      return newV;
+      throw err;
     }
   },
 
@@ -268,40 +210,7 @@ export const fleetApi = {
         (errorToThrow as any).fields = fieldErrors;
         throw errorToThrow;
       }
-
-      const index = MOCK_VEHICLES.findIndex((v) => v.id === id);
-      const current = MOCK_VEHICLES[index];
-
-      // Prohibit changing driver while vehicle is currently on a trip
-      if (
-        payload.assignedDriverId !== undefined &&
-        payload.assignedDriverId !== current.assignedDriverId &&
-        current.status === 'on_trip'
-      ) {
-        throw new Error('Prohibited: Cannot reassign driver while vehicle is currently on an active trip.');
-      }
-
-      // Enforce unique driver assignment and prohibit reassigning a driver who is on an active trip
-      if (payload.assignedDriverId) {
-        const busyVehicle = MOCK_VEHICLES.find(
-          (v) => v.id !== id && v.assignedDriverId === payload.assignedDriverId && v.status === 'on_trip'
-        );
-        if (busyVehicle) {
-          throw new Error(
-            `Prohibited: Driver is currently on an active trip on vehicle ${busyVehicle.registrationNumber} and cannot be assigned until the trip is completed.`
-          );
-        }
-
-        MOCK_VEHICLES.forEach((v) => {
-          if (v.id !== id && v.assignedDriverId === payload.assignedDriverId) {
-            v.assignedDriverId = undefined;
-            v.assignedDriverName = undefined;
-          }
-        });
-      }
-
-      MOCK_VEHICLES[index] = { ...MOCK_VEHICLES[index], ...payload };
-      return MOCK_VEHICLES[index];
+      throw err;
     }
   },
 };

@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { NotificationItem } from '../types';
-import { MOCK_NOTIFICATIONS } from '../api/mockData';
 
 interface NotificationContextType {
   notifications: NotificationItem[];
@@ -13,7 +12,7 @@ interface NotificationContextType {
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [notifications, setNotifications] = useState<NotificationItem[]>(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.isRead).length,

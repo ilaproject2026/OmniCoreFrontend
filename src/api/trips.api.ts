@@ -1,6 +1,5 @@
 import { apiClient } from './client';
-import { Booking, Trip, TripExpense, TripStatus, Invoice } from '../types';
-import { MOCK_BOOKINGS, MOCK_TRIPS, MOCK_VEHICLES, MOCK_DRIVERS, MOCK_INVOICES } from './mockData';
+import { Booking, Trip, TripExpense, TripStatus } from '../types';
 
 export const isUuid = (val: unknown): boolean =>
   typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
@@ -140,25 +139,18 @@ export const tripsApi = {
       queryParams.status = params.status.toUpperCase();
     }
 
+    let response;
     try {
-      let response;
-      try {
-        response = await apiClient.get<any>('/bookings/', { params: queryParams });
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          response = await apiClient.get<any>('/trips/bookings/', { params: queryParams });
-        } else {
-          throw err;
-        }
+      response = await apiClient.get<any>('/bookings/', { params: queryParams });
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        response = await apiClient.get<any>('/trips/bookings/', { params: queryParams });
+      } else {
+        throw err;
       }
-      const raw = Array.isArray(response.data) ? response.data : (response.data?.results || response.data?.data || []);
-      return raw.map(normalizeBookingResponse);
-    } catch {
-      if (params?.status && params.status !== 'all') {
-        return MOCK_BOOKINGS.filter((b) => b.status === params.status);
-      }
-      return MOCK_BOOKINGS;
     }
+    const raw = Array.isArray(response.data) ? response.data : (response.data?.results || response.data?.data || []);
+    return raw.map(normalizeBookingResponse);
   },
 
   createBooking: async (payload: Partial<Booking>): Promise<Booking> => {
@@ -191,99 +183,44 @@ export const tripsApi = {
       backendData.customer = customerUuid;
     }
 
+    let response;
     try {
-      let response;
-      try {
-        response = await apiClient.post<any>('/bookings/', backendData);
-      } catch (err: any) {
-        if (err?.response?.status === 404) {
-          response = await apiClient.post<any>('/trips/bookings/', backendData);
-        } else {
-          throw err;
-        }
-      }
-      return normalizeBookingResponse(response.data);
+      response = await apiClient.post<any>('/bookings/', backendData);
     } catch (err: any) {
-      if (err?.status === 400 || err?.response?.status === 400 || err?.errors || err?.code === 'VALIDATION_ERROR') {
-        const backendMessage =
-          err?.response?.data?.error?.message ||
-          err?.response?.data?.message ||
-          err?.message ||
-          'Booking creation failed on backend validation.';
-        throw new Error(backendMessage);
+      if (err?.response?.status === 404) {
+        response = await apiClient.post<any>('/trips/bookings/', backendData);
+      } else {
+        if (err?.status === 400 || err?.response?.status === 400 || err?.errors || err?.code === 'VALIDATION_ERROR') {
+          const backendMessage =
+            err?.response?.data?.error?.message ||
+            err?.response?.data?.message ||
+            err?.message ||
+            'Booking creation failed on backend validation.';
+          throw new Error(backendMessage);
+        }
+        throw err;
       }
-
-      const newB: Booking = {
-        id: 'bk_' + Math.random().toString(36).substring(2, 7),
-        bookingCode: 'BK-2026-' + Math.floor(100 + Math.random() * 900),
-        tenantId: 'tenant_apex',
-        customerId: payload.customerId,
-        contractId: payload.contractId,
-        customerName: payload.customerName || 'Standard Client',
-        customerPhone: payload.customerPhone || '+1 (555) 012-3456',
-        customerEmail: payload.customerEmail,
-        vertical: payload.vertical || 'freight_logistics',
-        vehicleType: payload.vehicleType || 'heavy_truck',
-        pickupLocation: payload.pickupLocation || 'Chicago Facility Hub',
-        dropoffLocation: payload.dropoffLocation || 'Detroit Assembly Terminal',
-        scheduledPickupTime: payload.scheduledPickupTime || 'Tomorrow 08:00',
-        cargoDescription: payload.cargoDescription || 'Industrial standard load',
-        estimatedWeightKg: payload.estimatedWeightKg || 12000,
-        passengerCount: payload.passengerCount,
-        estimatedAmount: payload.estimatedAmount || 2800,
-        currency: 'USD',
-        status: 'pending',
-        createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      };
-      MOCK_BOOKINGS.unshift(newB);
-      return newB;
     }
+    return normalizeBookingResponse(response.data);
   },
 
   getTrips: async (params?: { status?: string; vehicleId?: string; search?: string }): Promise<Trip[]> => {
-    try {
-      const response = await apiClient.get<any>('/trips/', {
-        params: {
-          status: params?.status && params.status !== 'all' ? params.status.toUpperCase() : undefined,
-          vehicle: isUuid(params?.vehicleId) ? params?.vehicleId : undefined,
-          search: params?.search || undefined,
-        },
-      });
-      const rawList = Array.isArray(response.data)
-        ? response.data
-        : (response.data?.results || response.data?.data || []);
-      return rawList.map(normalizeTripResponse);
-    } catch {
-      let list = [...MOCK_TRIPS];
-      if (params?.vehicleId) {
-        list = list.filter((t) => t.vehicleId === params.vehicleId);
-      }
-      if (params?.search) {
-        const q = params.search.toLowerCase();
-        list = list.filter(
-          (t) =>
-            t.tripCode.toLowerCase().includes(q) ||
-            t.customerName.toLowerCase().includes(q) ||
-            t.origin.toLowerCase().includes(q) ||
-            t.destination.toLowerCase().includes(q)
-        );
-      }
-      if (params?.status && params.status !== 'all') {
-        list = list.filter((t) => t.status === params.status);
-      }
-      return list;
-    }
+    const response = await apiClient.get<any>('/trips/', {
+      params: {
+        status: params?.status && params.status !== 'all' ? params.status.toUpperCase() : undefined,
+        vehicle: isUuid(params?.vehicleId) ? params?.vehicleId : undefined,
+        search: params?.search || undefined,
+      },
+    });
+    const rawList = Array.isArray(response.data)
+      ? response.data
+      : (response.data?.results || response.data?.data || []);
+    return rawList.map(normalizeTripResponse);
   },
 
   getTripById: async (id: string): Promise<Trip> => {
-    try {
-      const response = await apiClient.get<any>(`/trips/${id}/`);
-      return normalizeTripResponse(response.data);
-    } catch {
-      const t = MOCK_TRIPS.find((item) => item.id === id);
-      if (!t) throw new Error('Trip not found');
-      return t;
-    }
+    const response = await apiClient.get<any>(`/trips/${id}/`);
+    return normalizeTripResponse(response.data);
   },
 
   createTrip: async (payload: Partial<Trip>): Promise<Trip> => {
@@ -351,52 +288,20 @@ export const tripsApi = {
   },
 
   dispatchBooking: async (bookingId: string, vehicleId: string, driverId?: string): Promise<Trip> => {
-    // 1. Resolve booking details
-    let bk = MOCK_BOOKINGS.find((b) => b.id === bookingId);
-    if (!bk) {
+    // 1. Resolve booking details from backend if available
+    let bk: Booking | null = null;
+    try {
+      let bRes;
       try {
-        let bRes;
-        try {
-          bRes = await apiClient.get<any>(`/bookings/${bookingId}/`);
-        } catch {
-          bRes = await apiClient.get<any>(`/trips/bookings/${bookingId}/`);
-        }
-        if (bRes?.data) {
-          bk = normalizeBookingResponse(bRes.data);
-        }
+        bRes = await apiClient.get<any>(`/bookings/${bookingId}/`);
       } catch {
-        // Continue with local resolution
+        bRes = await apiClient.get<any>(`/trips/bookings/${bookingId}/`);
       }
-    }
-
-    const veh = MOCK_VEHICLES.find((v) => v.id === vehicleId);
-    const resolvedDriverId = driverId || veh?.assignedDriverId;
-    const drv = MOCK_DRIVERS.find((d) => d.id === resolvedDriverId);
-
-    // Business Rule Validation 1: Vehicle Operational Status
-    if (veh && veh.status !== 'available') {
-      throw new Error(`Cannot dispatch: Vehicle ${veh.registrationNumber} is currently in ${veh.status.replace('_', ' ')} status.`);
-    }
-
-    // Business Rule Validation 2: Vehicle Compliance Documents Expiry
-    const expiredDoc = veh?.documents?.find((d) => d.isExpired || (d.expiryDate && new Date(d.expiryDate) < new Date()));
-    if (expiredDoc) {
-      throw new Error(`Compliance Restriction: Vehicle ${veh?.registrationNumber} has an expired ${expiredDoc.type.replace('_', ' ')} document. Operation prohibited until renewed.`);
-    }
-
-    // Business Rule Validation 3: Driver Active Trip Conflict
-    if (drv && drv.status === 'on_trip') {
-      throw new Error(`Scheduling Conflict: Driver ${drv.firstName} ${drv.lastName} is currently on an active trip.`);
-    }
-
-    // Business Rule Validation 4: Driver Leave / Suspension Status
-    if (drv && (drv.leaveStatus === 'on_leave' || drv.leaveStatus === 'sick_leave' || drv.status === 'leave')) {
-      throw new Error(`HR Restriction: Driver ${drv.firstName} ${drv.lastName} is currently on approved leave.`);
-    }
-
-    // Business Rule Validation 5: Driver CDL License Validity
-    if (drv && drv.licenseExpiryDate && new Date(drv.licenseExpiryDate) < new Date()) {
-      throw new Error(`Safety Violation: Driver ${drv.firstName} ${drv.lastName} has an expired commercial driving license.`);
+      if (bRes?.data) {
+        bk = normalizeBookingResponse(bRes.data);
+      }
+    } catch {
+      // Continue
     }
 
     // 2. Resolve required customer UUID from backend
@@ -429,22 +334,14 @@ export const tripsApi = {
     if (isUuid(vehicleId)) {
       tripPayload.vehicle = vehicleId;
     }
-    if (isUuid(resolvedDriverId)) {
-      tripPayload.driver = resolvedDriverId;
+    if (isUuid(driverId)) {
+      tripPayload.driver = driverId;
     }
 
     try {
       // Create trip record via standard POST /api/v1/trips/ as SCHEDULED
       const response = await apiClient.post<any>('/trips/', tripPayload);
       const createdTrip = normalizeTripResponse(response.data);
-
-      // Enhance with resolved local vehicle & driver info if not populated from backend FKs
-      if (!createdTrip.vehicleReg && veh?.registrationNumber) {
-        createdTrip.vehicleReg = veh.registrationNumber;
-      }
-      if (!createdTrip.driverName && drv) {
-        createdTrip.driverName = `${drv.firstName} ${drv.lastName}`.trim();
-      }
 
       // Trigger the backend TripWorkflowService dispatch transition action if not already DISPATCHED
       if (createdTrip.status !== 'dispatched') {
@@ -471,11 +368,6 @@ export const tripsApi = {
         }
       }
 
-      // Also update local mock state so UI is immediately responsive
-      if (bk) bk.status = 'dispatched';
-      if (veh) veh.status = 'on_trip';
-      if (drv) drv.status = 'on_trip';
-
       return createdTrip;
     } catch (err: any) {
       if (err?.status === 400 || err?.response?.status === 400 || err?.errors || err?.code === 'VALIDATION_ERROR') {
@@ -490,50 +382,7 @@ export const tripsApi = {
         (errorToThrow as any).fields = fieldErrors;
         throw errorToThrow;
       }
-
-      // Fallback offline mock mode
-      if (bk) bk.status = 'dispatched';
-      if (veh) veh.status = 'on_trip';
-      if (drv) drv.status = 'on_trip';
-
-      const assignedDriverName = drv
-        ? `${drv.firstName} ${drv.lastName}`
-        : veh?.assignedDriverName || 'Assigned Driver';
-      const assignedDriverPhone = drv?.phone || '+1 (312) 555-0834';
-      const assignedVehicleReg = veh?.registrationNumber || 'IL-DISP-01';
-
-      const newTrip: Trip = {
-        id: 'trip_' + Math.random().toString(36).substring(2, 7),
-        tripCode: 'TRP-2026-' + Math.floor(8900 + Math.random() * 1000),
-        tenantId: bk?.tenantId || veh?.tenantId || 'tenant_apex',
-        bookingId: bookingId,
-        customerId: bk?.customerId,
-        contractId: bk?.contractId,
-        customerName: bk ? bk.customerName : 'Dispatched Customer',
-        vertical: bk ? bk.vertical : (veh?.vertical || 'freight_logistics'),
-        vehicleType: bk?.vehicleType || veh?.type,
-        vehicleId: vehicleId,
-        vehicleReg: assignedVehicleReg,
-        driverId: resolvedDriverId || 'drv_default',
-        driverName: assignedDriverName,
-        driverPhone: assignedDriverPhone,
-        origin: bk ? bk.pickupLocation : 'Distribution Terminal A',
-        destination: bk ? bk.dropoffLocation : 'Fulfillment Hub B',
-        distanceKm: Math.floor(120 + Math.random() * 350),
-        status: 'dispatched',
-        startTime: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        estimatedArrival: 'Tomorrow 18:00',
-        commercialRate: bk ? bk.estimatedAmount : 3200,
-        expensesTotal: 0,
-        expenses: [],
-        timeline: [
-          { status: 'scheduled', timestamp: 'Just now', note: `Booking accepted for ${bk?.customerName || 'Customer'}` },
-          { status: 'dispatched', timestamp: 'Just now', note: `Vehicle ${assignedVehicleReg} assigned with driver ${assignedDriverName}` },
-        ],
-      };
-
-      MOCK_TRIPS.unshift(newTrip);
-      return newTrip;
+      throw err;
     }
   },
 
@@ -543,27 +392,6 @@ export const tripsApi = {
     note?: string,
     extraData?: { start_odometer?: number; end_odometer?: number; reason?: string }
   ): Promise<Trip> => {
-    // If not a valid backend UUID, update locally in mock state
-    if (!isUuid(tripId)) {
-      const trip = MOCK_TRIPS.find((t) => t.id === tripId);
-      if (!trip) throw new Error('Trip not found');
-      trip.status = status;
-      if (status === 'completed') {
-        const veh = MOCK_VEHICLES.find((v) => v.id === trip.vehicleId);
-        if (veh) {
-          veh.status = 'available';
-          veh.totalTripsCount = (veh.totalTripsCount || 0) + 1;
-          veh.odometerKm = (veh.odometerKm || 0) + (trip.distanceKm || 0);
-        }
-        const drv = MOCK_DRIVERS.find((d) => d.id === trip.driverId);
-        if (drv) {
-          drv.status = 'available';
-          drv.totalTrips = (drv.totalTrips || 0) + 1;
-        }
-      }
-      return trip;
-    }
-
     try {
       let response;
       if (status === 'dispatched') {
@@ -596,68 +424,7 @@ export const tripsApi = {
           'Trip status transition failed on backend validation.';
         throw new Error(backendMessage);
       }
-
-      const trip = MOCK_TRIPS.find((t) => t.id === tripId);
-      if (!trip) throw new Error('Trip not found');
-      trip.status = status;
-
-      // Reactive Business Logic: If trip completed, restore vehicle and driver availability and generate billing
-      if (status === 'completed') {
-        const veh = MOCK_VEHICLES.find((v) => v.id === trip.vehicleId);
-        if (veh) {
-          veh.status = 'available';
-          veh.totalTripsCount = (veh.totalTripsCount || 0) + 1;
-          veh.odometerKm = (veh.odometerKm || 0) + (trip.distanceKm || 0);
-        }
-
-        const drv = MOCK_DRIVERS.find((d) => d.id === trip.driverId);
-        if (drv) {
-          drv.status = 'available';
-          drv.totalTrips = (drv.totalTrips || 0) + 1;
-        }
-
-        trip.netMargin = (trip.commercialRate || 0) - (trip.expensesTotal || 0);
-
-        // Auto-generate Billable Invoice in Accounts Receivable
-        if (!trip.invoiceId) {
-          const invId = `inv_auto_${Date.now()}`;
-          const amount = trip.commercialRate;
-          const tax = Math.round(amount * 0.08);
-          const newInv: Invoice = {
-            id: invId,
-            invoiceNumber: `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-            customerId: trip.customerId,
-            clientName: trip.customerName,
-            tripId: trip.id,
-            contractId: trip.contractId,
-            issueDate: new Date().toISOString().split('T')[0],
-            dueDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-            amount,
-            taxAmount: tax,
-            totalAmount: amount + tax,
-            balanceDue: amount + tax,
-            status: 'issued',
-            vertical: trip.vertical,
-            items: [
-              {
-                description: `Linehaul haulage billing for trip ${trip.tripCode} (${trip.origin} ➔ ${trip.destination})`,
-                quantity: 1,
-                unitPrice: amount,
-                total: amount,
-              },
-            ],
-          };
-          MOCK_INVOICES.unshift(newInv);
-          trip.invoiceId = invId;
-        }
-      }
-
-      trip.timeline.push({
-        status,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        note: note || `Status transitioned to ${status.replace('_', ' ')}`,
-      });
-      return { ...trip };
+      throw err;
     }
   },
 
@@ -671,40 +438,21 @@ export const tripsApi = {
       is_approved: true,
     };
 
+    let response;
     try {
-      let response;
-      try {
-        response = await apiClient.post<any>('/trip-expenses/', backendData);
-      } catch {
-        response = await apiClient.post<any>(`/trips/${tripId}/expenses/`, backendData);
-      }
-      return {
-        ...response.data,
-        id: response.data?.id || `exp_${Date.now()}`,
-        tripId,
-        category: expense.category,
-        amount: Number(response.data?.amount ?? expense.amount),
-        currency: expense.currency || 'USD',
-        loggedAt: response.data?.created_at || new Date().toISOString(),
-        approved: true,
-      };
+      response = await apiClient.post<any>('/trip-expenses/', backendData);
     } catch {
-      const trip = MOCK_TRIPS.find((t) => t.id === tripId);
-      const newExp: TripExpense = {
-        id: 'exp_' + Math.random().toString(36).substring(2, 6),
-        tripId,
-        category: expense.category,
-        amount: expense.amount,
-        currency: expense.currency || 'USD',
-        receiptUrl: expense.receiptUrl,
-        loggedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        approved: true,
-      };
-      if (trip) {
-        trip.expenses.push(newExp);
-        trip.expensesTotal += expense.amount;
-      }
-      return newExp;
+      response = await apiClient.post<any>(`/trips/${tripId}/expenses/`, backendData);
     }
+    return {
+      ...response.data,
+      id: response.data?.id || `exp_${Date.now()}`,
+      tripId,
+      category: expense.category,
+      amount: Number(response.data?.amount ?? expense.amount),
+      currency: expense.currency || 'USD',
+      loggedAt: response.data?.created_at || new Date().toISOString(),
+      approved: true,
+    };
   },
 };

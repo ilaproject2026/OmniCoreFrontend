@@ -1,8 +1,123 @@
 import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
-import { Tenant, VerticalType, PackageTier, AddonKey, User } from '../types';
+import { Tenant, VerticalType, PackageTier, AddonKey, User, TenantRole } from '../types';
 import { useAuth } from './AuthContext';
-import { MOCK_TENANTS } from '../api/mockData';
 import { PACKAGES } from '../config/constants';
+
+export const ROLE_DEFAULT_PERMISSIONS: Record<TenantRole, string[]> = {
+  tenant_admin: ['*'],
+  operations_manager: [
+    'dashboard.view',
+    'finance.view',
+    'finance.manage',
+    'hr.view',
+    'hr.manage',
+    'payroll.view',
+    'payroll.manage',
+    'insurance.view',
+    'insurance.manage',
+    'marketing.view',
+    'marketing.manage',
+    'reports.view',
+    'reports.export',
+    'reports.custom',
+    'notifications.view',
+  ],
+  fleet_manager: [
+    'dashboard.view',
+    'fleet.view',
+    'fleet.manage',
+    'drivers.view',
+    'drivers.manage',
+    'maintenance.view',
+    'maintenance.manage',
+    'trips.view',
+    'warehouse.view',
+    'insurance.view',
+    'insurance.manage',
+    'reports.view',
+    'notifications.view',
+  ],
+  finance_user: [
+    'dashboard.view',
+    'finance.view',
+    'finance.manage',
+    'contracts.view',
+    'contracts.manage',
+    'trips.view',
+    'reports.view',
+    'payroll.view',
+    'insurance.view',
+    'notifications.view',
+  ],
+  hr_user: [
+    'dashboard.view',
+    'hr.view',
+    'hr.manage',
+    'drivers.view',
+    'drivers.manage',
+    'payroll.view',
+    'payroll.manage',
+    'reports.view',
+    'notifications.view',
+  ],
+  warehouse_user: [
+    'dashboard.view',
+    'warehouse.view',
+    'warehouse.manage',
+    'maintenance.view',
+    'fleet.view',
+    'notifications.view',
+  ],
+  sales_crm_user: [
+    'dashboard.view',
+    'crm.view',
+    'crm.manage',
+    'contracts.view',
+    'contracts.manage',
+    'marketing.view',
+    'marketing.manage',
+    'trips.view',
+    'reports.view',
+    'notifications.view',
+  ],
+  driver_field_user: [
+    'dashboard.view',
+    'trips.view',
+    'fleet.view',
+    'notifications.view',
+  ],
+};
+
+const DEFAULT_INITIAL_TENANT: Tenant = {
+  id: 'tenant_apex',
+  name: 'Apex Global Logistics & Cold Chain',
+  slug: 'apex-global',
+  status: 'active',
+  verticals: ['freight_logistics', 'cold_chain', 'b2b_contract'],
+  subscription: {
+    package: 'enterprise',
+    status: 'active',
+    billingCycle: 'monthly',
+    mrr: 1899,
+    startDate: '2025-01-01',
+    renewalDate: '2027-01-01',
+    enabledAddons: ['addon_warehouse', 'addon_contracts', 'addon_cold_chain', 'addon_telematics', 'addon_maintenance_pro'],
+    currency: 'USD',
+    autoRenew: true,
+  },
+  primaryContactName: 'Marcus Sterling',
+  primaryContactEmail: 'sarang@apexlogistics.com',
+  primaryContactPhone: '+1 (312) 555-0190',
+  country: 'United States',
+  city: 'Chicago',
+  address: '100 North Michigan Ave',
+  vehicleCount: 0,
+  activeTripsCount: 0,
+  userCount: 1,
+  storageUsedGb: 0.5,
+  createdAt: '2025-01-01',
+  updatedAt: '2025-01-01',
+};
 
 interface TenantContextType {
   tenant: Tenant;
@@ -11,6 +126,7 @@ interface TenantContextType {
   enabledAddons: AddonKey[];
   enabledFeatures: string[];
   permissions: string[];
+  customRolePermissions: Record<string, string[]>;
   currentUser: User | null;
   can: (permission: string) => boolean;
   hasFeature: (featureName: string) => boolean;
@@ -21,6 +137,8 @@ interface TenantContextType {
   toggleAddon: (addonKey: AddonKey) => void;
   upgradePackage: (newTier: PackageTier, addons: AddonKey[]) => Promise<void>;
   reactivateTenant: () => void;
+  updateRolePermissions: (role: TenantRole, perms: string[]) => void;
+  resetRolePermissions: (role?: TenantRole) => void;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
@@ -34,11 +152,45 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         return JSON.parse(saved);
       } catch {
-        return MOCK_TENANTS[0];
+        return DEFAULT_INITIAL_TENANT;
       }
     }
-    return MOCK_TENANTS[0]; // Apex Global Logistics & Cold Chain
+    return DEFAULT_INITIAL_TENANT;
   });
+
+  // Customized role permissions stored by Super Admin
+  const [customRolePermissions, setCustomRolePermissions] = useState<Record<string, string[]>>(() => {
+    const saved = localStorage.getItem('omni_custom_role_permissions');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return {};
+      }
+    }
+    return {};
+  });
+
+  const updateRolePermissions = useCallback((role: TenantRole, perms: string[]) => {
+    setCustomRolePermissions((prev) => {
+      const updated = { ...prev, [role]: perms };
+      localStorage.setItem('omni_custom_role_permissions', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const resetRolePermissions = useCallback((role?: TenantRole) => {
+    setCustomRolePermissions((prev) => {
+      let updated = { ...prev };
+      if (role) {
+        delete updated[role];
+      } else {
+        updated = {};
+      }
+      localStorage.setItem('omni_custom_role_permissions', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
 
   const switchTenant = useCallback((newTenant: Tenant) => {
     setTenant(newTenant);
@@ -106,11 +258,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         },
         updatedAt: new Date().toISOString().slice(0, 10),
       };
-      const found = MOCK_TENANTS.find((t) => t.id === prev.id);
-      if (found) {
-        found.status = 'active';
-        if (found.subscription) found.subscription.status = 'active';
-      }
       localStorage.setItem('omni_active_tenant', JSON.stringify(updated));
       return updated;
     });
@@ -137,24 +284,31 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const permissions = user?.permissions || [];
 
-  // Centralized permission evaluator: can("vehicle.create"), can("finance.view"), etc.
+  // Centralized permission evaluator:
+  // 1. Super Admin has supreme authority over everything platform and tenant
+  // 2. Tenant Admin has full tenant-level administrative authority (* within tenant)
+  // 3. Other roles follow customized role permissions set by Super Admin (or defaults)
   const can = useCallback(
     (permission: string): boolean => {
       if (!user) return false;
-      if (user.isPlatformUser) return true; // Super admins have platform-wide access
-      if (permissions.includes('*')) return true;
-      if (permissions.includes(permission)) return true;
-
-      // Role shorthand fallbacks
+      if (user.isPlatformUser || user.platformRole === 'super_admin') return true;
       if (user.tenantRole === 'tenant_admin') return true;
 
-      // Domain-level permission prefix matching (e.g. "finance.*")
+      const role = user.tenantRole;
+      const customPerms = role && customRolePermissions[role] ? customRolePermissions[role] : null;
+      const roleDefaults = role ? (customPerms || ROLE_DEFAULT_PERMISSIONS[role] || []) : [];
+      const effectivePerms = [...(user.permissions || []), ...roleDefaults];
+
+      if (effectivePerms.includes('*')) return true;
+      if (effectivePerms.includes(permission)) return true;
+
+      // Domain-level permission prefix matching (e.g. "finance.*" covers "finance.view", "finance.manage")
       const [domain] = permission.split('.');
-      if (permissions.includes(`${domain}.*`)) return true;
+      if (effectivePerms.includes(`${domain}.*`)) return true;
 
       return false;
     },
-    [user, permissions]
+    [user, customRolePermissions]
   );
 
   const hasFeature = useCallback(
@@ -189,6 +343,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         enabledAddons,
         enabledFeatures,
         permissions,
+        customRolePermissions,
         currentUser: user,
         can,
         hasFeature,
@@ -199,6 +354,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         toggleAddon,
         upgradePackage,
         reactivateTenant,
+        updateRolePermissions,
+        resetRolePermissions,
       }}
     >
       {children}

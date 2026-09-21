@@ -1,11 +1,21 @@
 import { apiClient, tokenStorage } from './client';
 import { User } from '../types';
-import { MOCK_USERS } from './mockData';
 
 export interface LoginCredentials {
   email: string;
   password?: string;
   mfaCode?: string;
+}
+
+export interface RegisterPayload {
+  company_name: string;
+  email: string;
+  password?: string;
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  is_super_admin?: boolean;
+  package_tier?: string;
 }
 
 export interface AuthResponse {
@@ -16,109 +26,160 @@ export interface AuthResponse {
 }
 
 export const authApi = {
-  login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
+  register: async (payload: RegisterPayload): Promise<AuthResponse> => {
+    const body = {
+      company_name: payload.company_name,
+      name: payload.company_name,
+      email: payload.email,
+      password: payload.password || 'admin',
+      first_name: payload.first_name || 'Admin',
+      last_name: payload.last_name || 'User',
+      phone: payload.phone || '',
+      is_platform_admin: Boolean(payload.is_super_admin),
+      is_super_admin: Boolean(payload.is_super_admin),
+      package_tier: payload.package_tier || 'standard',
+    };
+
+    let raw: any = null;
     try {
-      const response = await apiClient.post<any>('/auth/login/', {
-        email: credentials.email,
-        password: credentials.password || 'admin',
-      });
-
-      const raw = response.data?.data || response.data;
-      const rawUser = raw.user || {};
-
-      const activeTenant = raw.tenants?.[0];
-      const roleCode = (activeTenant?.role_code || 'tenant_admin').toLowerCase();
-      const platformRoleRaw = rawUser.platform_role ? rawUser.platform_role.toLowerCase() : 'super_admin';
-
-      // Map backend user to frontend User interface
-      const user: User = {
-        id: String(rawUser.id || 'user_current'),
-        email: rawUser.email || credentials.email,
-        firstName: rawUser.first_name || rawUser.full_name?.split(' ')[0] || 'User',
-        lastName: rawUser.last_name || rawUser.full_name?.split(' ').slice(1).join(' ') || '',
-        avatar: rawUser.avatar || undefined,
-        isPlatformUser: Boolean(rawUser.is_platform_admin),
-        platformRole: rawUser.is_platform_admin ? (platformRoleRaw as any) : undefined,
-        tenantId: activeTenant?.id || 'tenant_apex',
-        tenantRole: (roleCode as any),
-        permissions: activeTenant?.permissions && activeTenant.permissions.length > 0 ? activeTenant.permissions : ['*'],
-        mfaEnabled: false, // 2FA temporarily disabled as requested
-        status: 'active',
-      };
-
-      if (raw.access) tokenStorage.setAccessToken(raw.access);
-      if (raw.refresh) tokenStorage.setRefreshToken(raw.refresh);
-
-      return {
-        access: raw.access || 'cookie_session_active',
-        refresh: raw.refresh || 'cookie_refresh_active',
-        user,
-        mfaRequired: false, // 2FA temporarily removed
-      };
-    } catch (err) {
-      console.warn('Backend login fallback to demo user:', err);
-
-      // Graceful demo fallback if backend is offline or network fails
-      const foundUser =
-        MOCK_USERS.find(
-          (u) => u.email.toLowerCase() === credentials.email.toLowerCase()
-        ) || MOCK_USERS[1];
-
-      const simulatedUser: User = {
-        ...foundUser,
-        mfaEnabled: false, // 2FA disabled
-      };
-
-      const fallbackResponse: AuthResponse = {
-        access: 'mock_jwt_access_token_' + Date.now(),
-        refresh: 'mock_jwt_refresh_token_' + Date.now(),
-        user: simulatedUser,
-        mfaRequired: false,
-      };
-
-      tokenStorage.setAccessToken(fallbackResponse.access);
-      tokenStorage.setRefreshToken(fallbackResponse.refresh);
-      return fallbackResponse;
+      const response = await apiClient.post<any>('/auth/register/', body);
+      raw = response.data?.data || response.data;
+    } catch (err: any) {
+      // Fallback 1: Try /auth/signup/ if /auth/register/ was 404
+      if (err?.response?.status === 404) {
+        try {
+          const resSignup = await apiClient.post<any>('/auth/signup/', body);
+          raw = resSignup.data?.data || resSignup.data;
+        } catch (signupErr: any) {
+          if (signupErr?.response?.status === 404) {
+            // Fallback 2: Try /platform/tenants/ or /tenants/
+            const resTenant = await apiClient.post<any>('/platform/tenants/', body);
+            raw = resTenant.data?.data || resTenant.data;
+          } else {
+            throw signupErr;
+          }
+        }
+      } else {
+        throw err;
+      }
     }
+
+    const rawUser = raw?.user || raw || {};
+    const user: User = {
+      id: String(rawUser.id || 'usr_new'),
+      email: rawUser.email || payload.email,
+      firstName: rawUser.first_name || payload.first_name || 'User',
+      lastName: rawUser.last_name || payload.last_name || '',
+      isPlatformUser: Boolean(payload.is_super_admin || rawUser.is_platform_admin),
+      platformRole: (payload.is_super_admin || rawUser.is_platform_admin) ? 'super_admin' : undefined,
+      tenantId: rawUser.tenant_id || raw?.active_tenant?.id || 'tenant_registered',
+      tenantRole: payload.is_super_admin ? undefined : 'tenant_admin',
+      permissions: ['*'],
+      mfaEnabled: false,
+      status: 'active',
+    };
+
+    if (raw?.access) tokenStorage.setAccessToken(raw.access);
+    if (raw?.refresh) tokenStorage.setRefreshToken(raw.refresh);
+
+    return {
+      access: raw?.access || 'session_active',
+      refresh: raw?.refresh || 'refresh_active',
+      user,
+      mfaRequired: false,
+    };
+  },
+
+  login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
+    const response = await apiClient.post<any>('/auth/login/', {
+      email: credentials.email,
+      password: credentials.password || 'admin',
+    });
+
+    const raw = response.data?.data || response.data;
+    const rawUser = raw.user || {};
+
+    const activeTenant = raw.tenants?.[0];
+    const roleCode = (activeTenant?.role_code || 'tenant_admin').toLowerCase();
+    const platformRoleRaw = rawUser.platform_role ? rawUser.platform_role.toLowerCase() : 'super_admin';
+
+    // Map backend user to frontend User interface
+    const user: User = {
+      id: String(rawUser.id || 'user_current'),
+      email: rawUser.email || credentials.email,
+      firstName: rawUser.first_name || rawUser.full_name?.split(' ')[0] || 'User',
+      lastName: rawUser.last_name || rawUser.full_name?.split(' ').slice(1).join(' ') || '',
+      avatar: rawUser.avatar || undefined,
+      isPlatformUser: Boolean(rawUser.is_platform_admin),
+      platformRole: rawUser.is_platform_admin ? (platformRoleRaw as any) : undefined,
+      tenantId: activeTenant?.id || 'tenant_apex',
+      tenantRole: (roleCode as any),
+      permissions: activeTenant?.permissions && activeTenant.permissions.length > 0 ? activeTenant.permissions : ['*'],
+      mfaEnabled: false,
+      status: 'active',
+    };
+
+    if (raw.access) tokenStorage.setAccessToken(raw.access);
+    if (raw.refresh) tokenStorage.setRefreshToken(raw.refresh);
+
+    return {
+      access: raw.access || 'session_active',
+      refresh: raw.refresh || 'refresh_active',
+      user,
+      mfaRequired: false,
+    };
   },
 
   verifyMfa: async (email: string, code: string): Promise<AuthResponse> => {
-    // 2FA is temporarily bypassed, immediately resolve session
-    const foundUser =
-      MOCK_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase()) ||
-      MOCK_USERS[1];
+    const response = await apiClient.post<any>('/auth/mfa/verify/', { email, code });
+    const raw = response.data?.data || response.data;
+    const rawUser = raw.user || {};
+
+    const user: User = {
+      id: String(rawUser.id || 'user_current'),
+      email: rawUser.email || email,
+      firstName: rawUser.first_name || 'User',
+      lastName: rawUser.last_name || '',
+      avatar: rawUser.avatar || undefined,
+      isPlatformUser: Boolean(rawUser.is_platform_admin),
+      platformRole: rawUser.is_platform_admin ? 'super_admin' : undefined,
+      tenantId: raw.active_tenant?.id || 'tenant_apex',
+      tenantRole: 'tenant_admin',
+      permissions: raw.permissions || ['*'],
+      mfaEnabled: false,
+      status: 'active',
+    };
+
+    if (raw.access) tokenStorage.setAccessToken(raw.access);
+    if (raw.refresh) tokenStorage.setRefreshToken(raw.refresh);
 
     return {
-      access: tokenStorage.getAccessToken() || 'token_mfa_bypassed',
-      refresh: tokenStorage.getRefreshToken() || 'refresh_mfa_bypassed',
-      user: { ...foundUser, mfaEnabled: false },
+      access: raw.access || '',
+      refresh: raw.refresh || '',
+      user,
       mfaRequired: false,
     };
   },
 
   getCurrentUser: async (): Promise<User> => {
-    try {
-      const response = await apiClient.get<any>('/auth/me/');
-      const raw = response.data?.data || response.data;
-      const rawUser = raw.user || {};
+    const response = await apiClient.get<any>('/auth/me/');
+    const raw = response.data?.data || response.data;
+    const rawUser = raw.user || {};
 
-      return {
-        id: String(rawUser.id || 'user_current'),
-        email: rawUser.email || '',
-        firstName: rawUser.first_name || rawUser.full_name?.split(' ')[0] || 'User',
-        lastName: rawUser.last_name || '',
-        avatar: rawUser.avatar || undefined,
-        isPlatformUser: Boolean(rawUser.is_platform_admin),
-        platformRole: rawUser.is_platform_admin ? 'super_admin' : undefined,
-        tenantId: raw.active_tenant?.id || 'tenant_apex',
-        tenantRole: 'tenant_admin',
-        permissions: raw.permissions || ['*'],
-        mfaEnabled: false,
-        status: 'active',
-      };
-    } catch {
-      return MOCK_USERS[1]; // Default to Tenant Admin
-    }
+    return {
+      id: String(rawUser.id || 'user_current'),
+      email: rawUser.email || '',
+      firstName: rawUser.first_name || rawUser.full_name?.split(' ')[0] || 'User',
+      lastName: rawUser.last_name || '',
+      avatar: rawUser.avatar || undefined,
+      isPlatformUser: Boolean(rawUser.is_platform_admin),
+      platformRole: rawUser.is_platform_admin ? 'super_admin' : undefined,
+      tenantId: raw.active_tenant?.id || 'tenant_apex',
+      tenantRole: 'tenant_admin',
+      permissions: raw.permissions || ['*'],
+      mfaEnabled: false,
+      status: 'active',
+    };
   },
 
   logout: async (): Promise<void> => {

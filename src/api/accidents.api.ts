@@ -1,8 +1,5 @@
 import { apiClient } from './client';
 import { AccidentReport } from '../types';
-import { MOCK_ACCIDENTS, MOCK_VEHICLES, MOCK_DRIVERS, MOCK_MAINTENANCE, MOCK_CLAIMS } from './mockData';
-
-let accidentsState: AccidentReport[] = [...MOCK_ACCIDENTS];
 
 // Django Backend IncidentSeverity Translators
 export const mapIncidentSeverityToBackend = (severity?: string): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' => {
@@ -88,29 +85,11 @@ export const accidentsApi = {
       queryParams.vehicle_id = params.vehicleId;
     }
 
-    try {
-      const response = await apiClient.get<any>('/fleet/accidents/', { params: queryParams });
-      const rawList = Array.isArray(response.data)
-        ? response.data
-        : (response.data?.results || response.data?.data || []);
-      return rawList.map(normalizeAccidentResponse);
-    } catch {
-      let list = [...accidentsState];
-      if (params?.vehicleId && params.vehicleId !== 'all') {
-        list = list.filter((a) => a.vehicleId === params.vehicleId);
-      }
-      if (params?.search) {
-        const q = params.search.toLowerCase();
-        list = list.filter(
-          (a) =>
-            a.accidentCode.toLowerCase().includes(q) ||
-            a.vehicleReg.toLowerCase().includes(q) ||
-            a.driverName.toLowerCase().includes(q) ||
-            a.location.toLowerCase().includes(q)
-        );
-      }
-      return list;
-    }
+    const response = await apiClient.get<any>('/fleet/accidents/', { params: queryParams });
+    const rawList = Array.isArray(response.data)
+      ? response.data
+      : (response.data?.results || response.data?.data || []);
+    return rawList.map(normalizeAccidentResponse);
   },
 
   reportAccident: async (payload: Partial<AccidentReport>): Promise<AccidentReport> => {
@@ -131,80 +110,7 @@ export const accidentsApi = {
         (errorToThrow as any).fields = fieldErrors;
         throw errorToThrow;
       }
-      const veh = MOCK_VEHICLES.find((v) => v.id === payload.vehicleId || v.registrationNumber === payload.vehicleReg);
-      const drv = MOCK_DRIVERS.find((d) => d.id === payload.driverId || `${d.firstName} ${d.lastName}` === payload.driverName);
-
-      // Auto-ground vehicle
-      if (veh) {
-        veh.status = 'accident';
-      }
-
-      // Increment driver incident count
-      if (drv) {
-        drv.incidentCount += 1;
-        drv.safetyScore = Math.max(50, drv.safetyScore - 8);
-      }
-
-      const newClaimId = `clm_${Date.now()}`;
-      const newAccident: AccidentReport = {
-        id: `acc_${Date.now()}`,
-        accidentCode: `ACC-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-        vehicleId: payload.vehicleId || veh?.id || 'veh_01',
-        vehicleReg: payload.vehicleReg || veh?.registrationNumber || 'IL-9428-TX',
-        driverId: payload.driverId || drv?.id || 'drv_01',
-        driverName: payload.driverName || (drv ? `${drv.firstName} ${drv.lastName}` : 'Assigned Driver'),
-        tripId: payload.tripId,
-        incidentDate: payload.incidentDate || new Date().toISOString().replace('T', ' ').slice(0, 16),
-        location: payload.location || 'Highway In-Transit',
-        damageSeverity: payload.damageSeverity || 'moderate',
-        damageDescription: payload.damageDescription || 'Collision impact requiring bay appraisal',
-        thirdPartyInvolved: payload.thirdPartyInvolved ?? true,
-        thirdPartyDetails: payload.thirdPartyDetails,
-        policeReportNumber: payload.policeReportNumber || `POL-2026-${Math.floor(10000 + Math.random() * 90000)}`,
-        estimatedRepairCost: payload.estimatedRepairCost || 5000,
-        actualRepairCost: payload.actualRepairCost,
-        insuranceClaimId: newClaimId,
-        insuranceClaimStatus: 'filed',
-        vehicleDowntimeDays: payload.vehicleDowntimeDays || 5,
-        status: 'under_repair',
-        preventable: payload.preventable ?? false,
-        notes: payload.notes,
-      };
-
-      accidentsState.unshift(newAccident);
-
-      // Automatically generate insurance claim record
-      MOCK_CLAIMS.unshift({
-        id: newClaimId,
-        claimNumber: `CLM-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-        policyNumber: 'POL-COMM-99201',
-        vehicleReg: newAccident.vehicleReg,
-        incidentDate: newAccident.incidentDate.slice(0, 10),
-        claimAmount: newAccident.estimatedRepairCost,
-        status: 'filed',
-        description: `Accident claim for incident ${newAccident.accidentCode}: ${newAccident.damageDescription}`,
-      });
-
-      // Automatically schedule repair work order
-      MOCK_MAINTENANCE.unshift({
-        id: `maint_acc_${Date.now()}`,
-        recordCode: `WO-ACC-${Math.floor(100 + Math.random() * 900)}`,
-        vehicleId: newAccident.vehicleId,
-        vehicleReg: newAccident.vehicleReg,
-        type: 'accident_repair',
-        status: 'in_progress',
-        reportedDate: newAccident.incidentDate.slice(0, 10),
-        odometerAtService: veh?.odometerKm || 85000,
-        workshopName: 'Apex Central Heavy Depot & Workshop',
-        technicianName: 'Marcus Sterling',
-        issueDescription: `Post-Accident Repair for ${newAccident.accidentCode}: ${newAccident.damageDescription}`,
-        actionTaken: 'Structural integrity check, chassis laser measurement, and replacement parts requisitioned.',
-        partsConsumed: [],
-        laborCost: 1200,
-        totalCost: newAccident.estimatedRepairCost,
-      });
-
-      return newAccident;
+      throw err;
     }
   },
 };

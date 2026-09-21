@@ -1,16 +1,28 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
-import { Lock, Mail, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { Lock, Mail, ArrowRight, ShieldCheck, Sparkles, CheckCircle2, UserPlus } from 'lucide-react';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, isLoading } = useAuth();
-  const [email, setEmail] = useState('admin@gmail.com');
+
+  const state = location.state as { registeredEmail?: string; successMessage?: string } | null;
+
+  const [email, setEmail] = useState(state?.registeredEmail || 'admin@gmail.com');
   const [password, setPassword] = useState('admin');
   const [error, setError] = useState<string | null>(null);
+  const [successNotice, setSuccessNotice] = useState<string | null>(state?.successMessage || null);
+
+  useEffect(() => {
+    if (state?.registeredEmail) {
+      setEmail(state.registeredEmail);
+      setPassword('');
+    }
+  }, [state]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,12 +56,19 @@ export const Login: React.FC = () => {
 
   return (
     <div className="w-full">
-      <div className="mb-8">
+      <div className="mb-6">
         <h2 className="text-2xl font-bold text-white tracking-tight">Welcome to OmniCore</h2>
         <p className="mt-1 text-xs text-slate-400">
           Sign in to access your logistics workspace, fleet telematics, and operations.
         </p>
       </div>
+
+      {successNotice && (
+        <div className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-400 flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+          <span>{successNotice}</span>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400">
@@ -91,13 +110,27 @@ export const Login: React.FC = () => {
         <Button type="submit" className="w-full mt-2" isLoading={isLoading} rightIcon={<ArrowRight className="h-4 w-4" />}>
           Sign In to OmniCore
         </Button>
+
+        <div className="text-center pt-2">
+          <p className="text-xs text-slate-400">
+            First time using OmniCore?{' '}
+            <Link to="/auth/register" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">
+              Create an account / Register
+            </Link>
+          </p>
+        </div>
       </form>
 
       {/* Quick Demo Login Preset Buttons */}
       <div className="mt-8 pt-6 border-t border-slate-800">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 mb-3">
-          <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-          <span>Quick Demo Access Roles</span>
+        <div className="flex items-center justify-between text-xs font-semibold text-slate-400 mb-3">
+          <span className="flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+            <span>Quick Demo Access Roles</span>
+          </span>
+          <Link to="/auth/register" className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1">
+            <UserPlus className="h-3 w-3" /> New Register
+          </Link>
         </div>
 
         <div className="grid grid-cols-2 gap-2">

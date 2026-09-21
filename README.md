@@ -1,15 +1,20 @@
-# React + TypeScript + Vite
+# OmniCore Logistics & Fleet Ecosystem
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+OmniCore is an enterprise-grade, multi-tenant SaaS platform engineered for fleet telemetry, long-haul freight logistics, courier & express operations, passenger shuttle routing, warehouse cross-docking, and financial billing.
 
-Currently, two official plugins are available:
+## 📚 Master Documentation & Operations Guides
+* **[Master Operations & Workflow Guide](docs/OMNICORE_MASTER_OPERATIONS_GUIDE.md)**: Exhaustive manual covering user roles, granular permissions, multi-branch scoping, trip dispatching, fleet management, courier/shuttle workflows, and platform administration.
+* **[Vertical Differentiation & Architecture Specification](docs/vertical_differentiation.md)**: Technical architecture specification of the 10 specialized industry transport verticals, AWB lifecycle state machines, and multi-tenant telemetry polymorphism.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 🚀 Key System Features
+* **Multi-Tenant & Multi-Branch Architecture**: Seamless isolation with `X-Tenant-ID` scoping and regional depot filtering via the `BranchSwitcher`.
+* **RBAC & Authorization Matrix**: Dual-tier security (Platform Super Admins vs. Tenant Operators) with fine-grained capability tokens (`can('domain.action')`).
+* **Interactive Role Simulation**: Fast persona switching via `RoleSwitcher` on the top navbar to inspect dynamic UI adaptations in real time.
+* **End-to-End Operational Lifecycle**: Consignment booking, anti-conflict driver/vehicle allocation, live dispatching, expense auditing, and automated net profit margin calculation.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
 ## Expanding the ESLint configuration
 

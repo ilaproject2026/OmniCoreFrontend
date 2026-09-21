@@ -18,6 +18,7 @@ import {
   ArrowLeft,
   Sparkles,
   Zap,
+  KeyRound,
 } from 'lucide-react';
 
 import {
@@ -127,6 +128,15 @@ export const CustomFeatureOverrides: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <Link to="/platform/roles">
+            <Button
+              size="sm"
+              variant="outline"
+              icon={<KeyRound className="h-4 w-4 text-amber-400" />}
+            >
+              Role Permissions Matrix
+            </Button>
+          </Link>
           <Button
             size="sm"
             variant="outline"

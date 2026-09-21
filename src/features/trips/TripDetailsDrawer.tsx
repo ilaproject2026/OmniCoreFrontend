@@ -142,15 +142,15 @@ export const TripDetailsDrawer: React.FC<TripDetailsDrawerProps> = ({
                 <span className="text-slate-400 block text-[11px]">Assigned Vehicle Asset</span>
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-bold text-white font-mono">{trip.vehicleReg}</span>
-                  <Badge variant="outline" size="sm" className="capitalize">{trip.vertical.replace('_', ' ')}</Badge>
+                  <Badge variant="outline" size="sm" className="capitalize">{trip?.vertical?.replace('_', ' ')}</Badge>
                 </div>
               </div>
 
               <div className="rounded-xl border border-slate-800 bg-[#141c2e] p-4 space-y-2">
                 <span className="text-slate-400 block text-[11px]">Assigned Commercial Driver</span>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-bold text-white">{trip.driverName}</span>
-                  <span className="text-slate-400 font-mono text-[11px]">{trip.driverPhone}</span>
+                  <span className="text-sm font-bold text-white">{trip?.driverName}</span>
+                  <span className="text-slate-400 font-mono text-[11px]">{trip?.driverPhone}</span>
                 </div>
               </div>
             </div>
@@ -161,15 +161,15 @@ export const TripDetailsDrawer: React.FC<TripDetailsDrawerProps> = ({
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <span className="text-slate-500 block text-[10px]">CONTRACT FREIGHT RATE</span>
-                  <span className="text-lg font-bold text-emerald-400 font-mono">{formatCurrency(trip.commercialRate)}</span>
+                  <span className="text-lg font-bold text-emerald-400 font-mono">{formatCurrency(trip?.commercialRate)}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[10px]">LOGGED OPERATING EXPENSES</span>
-                  <span className="text-lg font-bold text-rose-400 font-mono">-{formatCurrency(trip.expensesTotal)}</span>
+                  <span className="text-lg font-bold text-rose-400 font-mono">-{formatCurrency(trip?.expensesTotal)}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[10px]">NET TRIP CONTRIBUTION</span>
-                  <span className="text-lg font-bold text-cyan-400 font-mono">{formatCurrency(trip.commercialRate - trip.expensesTotal)}</span>
+                  <span className="text-lg font-bold text-cyan-400 font-mono">{formatCurrency(trip?.commercialRate - trip?.expensesTotal)}</span>
                 </div>
               </div>
             </div>
