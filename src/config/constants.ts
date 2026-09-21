@@ -1,4 +1,4 @@
-import { VerticalDefinition, PackageDefinition, AddonDefinition } from '../types';
+import { VerticalDefinition, PackageDefinition, AddonDefinition, PackageTier } from '../types';
 
 export const VERTICALS: Record<string, VerticalDefinition> = {
   taxi_cab: {
@@ -197,6 +197,46 @@ export const PACKAGES: Record<string, PackageDefinition> = {
     ],
     recommendedFor: 'National transport conglomerates, cold-chain pharma fleets, and logistics 3PLs.',
   },
+};
+
+export const TIER_RANK: Record<PackageTier, number> = {
+  basic: 1,
+  standard: 2,
+  corporate: 3,
+  enterprise: 4,
+};
+
+export const TIER_DISPLAY_NAMES: Record<PackageTier, string> = {
+  basic: 'Basic Starter',
+  standard: 'Standard Fleet',
+  corporate: 'Corporate Enterprise',
+  enterprise: 'OmniCore Ecosystem',
+};
+
+export const MODULE_REQUIRED_TIERS: Record<string, PackageTier> = {
+  // Basic Tier (Level 1)
+  dashboard: 'basic',
+  fleet: 'basic',
+  drivers: 'basic',
+  trips: 'basic',
+  reports: 'basic',
+  settings: 'basic',
+  notifications: 'basic',
+  public_portal: 'basic',
+
+  // Standard Tier (Level 2)
+  maintenance: 'standard',
+  finance: 'standard',
+  courier: 'standard',
+  shuttle: 'standard',
+
+  // Corporate Tier (Level 3)
+  contracts: 'corporate',
+  warehouse: 'corporate',
+  crm: 'corporate',
+  hr: 'corporate',
+  insurance: 'corporate',
+  marketing: 'corporate',
 };
 
 export const ADDONS: AddonDefinition[] = [

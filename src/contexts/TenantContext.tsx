@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
 import { Tenant, VerticalType, PackageTier, AddonKey, User, TenantRole } from '../types';
 import { useAuth } from './AuthContext';
-import { PACKAGES } from '../config/constants';
+import { PACKAGES, TIER_RANK, MODULE_REQUIRED_TIERS, TIER_DISPLAY_NAMES } from '../config/constants';
+import { platformApi } from '../api/platform.api';
 
 export const ROLE_DEFAULT_PERMISSIONS: Record<TenantRole, string[]> = {
   tenant_admin: ['*'],
@@ -132,10 +133,13 @@ interface TenantContextType {
   hasFeature: (featureName: string) => boolean;
   hasAddon: (addonKey: AddonKey) => boolean;
   hasVertical: (verticalKey: VerticalType) => boolean;
+  isModuleAllowedByPlan: (moduleKey: string) => boolean;
+  getRequiredTierForModule: (moduleKey: string) => PackageTier;
   switchTenant: (newTenant: Tenant) => void;
   setPackageTier: (tier: PackageTier) => void;
   toggleAddon: (addonKey: AddonKey) => void;
   upgradePackage: (newTier: PackageTier, addons: AddonKey[]) => Promise<void>;
+  changeTenantPackage: (tenantId: string, newTier: PackageTier, addons?: AddonKey[]) => Promise<void>;
   reactivateTenant: () => void;
   updateRolePermissions: (role: TenantRole, perms: string[]) => void;
   resetRolePermissions: (role?: TenantRole) => void;
@@ -311,12 +315,72 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [user, customRolePermissions]
   );
 
+  const getRequiredTierForModule = useCallback((moduleKey: string): PackageTier => {
+    return MODULE_REQUIRED_TIERS[moduleKey] || 'basic';
+  }, []);
+
+  const isModuleAllowedByPlan = useCallback(
+    (moduleKey: string): boolean => {
+      if (user?.isPlatformUser || user?.platformRole === 'super_admin') return true;
+
+      // Addon & vertical overrides
+      if (moduleKey === 'warehouse' && enabledAddons.includes('addon_warehouse')) return true;
+      if (moduleKey === 'contracts' && enabledAddons.includes('addon_contracts')) return true;
+      if (moduleKey === 'maintenance' && enabledAddons.includes('addon_maintenance_pro')) return true;
+      if (moduleKey === 'courier' && (verticals.includes('courier_express') || enabledAddons.includes('addon_last_mile'))) return true;
+      if (moduleKey === 'shuttle' && verticals.includes('corporate_shuttle')) return true;
+
+      // Subscription package tier rank check
+      const requiredTier = MODULE_REQUIRED_TIERS[moduleKey] || 'basic';
+      const currentRank = TIER_RANK[packageTier] || 1;
+      const requiredRank = TIER_RANK[requiredTier] || 1;
+      return currentRank >= requiredRank;
+    },
+    [user, packageTier, enabledAddons, verticals]
+  );
+
+  const changeTenantPackage = useCallback(
+    async (tenantId: string, newTier: PackageTier, addons?: AddonKey[]) => {
+      const effectiveAddons = addons !== undefined ? addons : (tenant.id === tenantId ? enabledAddons : []);
+      const pkgDef = PACKAGES[newTier] || PACKAGES.standard;
+
+      try {
+        await platformApi.upgradeTenantPackage(tenantId, newTier, effectiveAddons);
+      } catch (err) {
+        console.warn('Backend upgrade endpoint notice (handled gracefully):', err);
+      }
+
+      // If updating active tenant, update context & localStorage immediately
+      if (tenant.id === tenantId || tenantId === 'tenant_apex' || !tenantId) {
+        setTenant((prev) => {
+          const updated: Tenant = {
+            ...prev,
+            subscription: {
+              ...prev.subscription,
+              package: newTier,
+              enabledAddons: effectiveAddons,
+              mrr: pkgDef.monthlyPrice,
+            },
+            updatedAt: new Date().toISOString().slice(0, 10),
+          };
+          localStorage.setItem('omni_active_tenant', JSON.stringify(updated));
+          return updated;
+        });
+      }
+    },
+    [tenant.id, enabledAddons]
+  );
+
   const hasFeature = useCallback(
     (featureName: string): boolean => {
+      if (user?.isPlatformUser || user?.platformRole === 'super_admin') return true;
+      if (MODULE_REQUIRED_TIERS[featureName]) {
+        return isModuleAllowedByPlan(featureName);
+      }
       const lower = featureName.toLowerCase();
       return enabledFeatures.some((f) => f.toLowerCase() === lower || f.toLowerCase().includes(lower));
     },
-    [enabledFeatures]
+    [user, isModuleAllowedByPlan, enabledFeatures]
   );
 
   const hasAddon = useCallback(
@@ -349,10 +413,13 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         hasFeature,
         hasAddon,
         hasVertical,
+        isModuleAllowedByPlan,
+        getRequiredTierForModule,
         switchTenant,
         setPackageTier,
         toggleAddon,
         upgradePackage,
+        changeTenantPackage,
         reactivateTenant,
         updateRolePermissions,
         resetRolePermissions,

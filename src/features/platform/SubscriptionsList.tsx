@@ -7,11 +7,13 @@ import { Button } from '../../components/common/Button';
 import { StatCard } from '../../components/common/StatCard';
 import { Tenant } from '../../types';
 import { formatCurrency, formatDate } from '../../lib/utils';
-import { Receipt, RefreshCw, CheckCircle2, AlertTriangle, ArrowUpRight, DollarSign, Calendar } from 'lucide-react';
+import { Receipt, RefreshCw, CheckCircle2, AlertTriangle, ArrowUpRight, DollarSign, Calendar, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { ChangePlanModal } from './ChangePlanModal';
 
 export const SubscriptionsList: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedTenantForPlan, setSelectedTenantForPlan] = useState<Tenant | null>(null);
 
   const { data: tenants = [], isLoading: isTenantsLoading } = useQuery({
     queryKey: ['platformTenants'],
@@ -49,16 +51,21 @@ export const SubscriptionsList: React.FC = () => {
       key: 'package',
       header: 'Subscribed Tier',
       accessor: (row) => row?.subscription?.package,
-      render: (val) => {
+      render: (val, row) => {
         const isEnterprise = val === 'enterprise';
         return (
-          <span className={`font-bold text-xs uppercase px-2 py-0.5 rounded ${
-            isEnterprise
-              ? 'text-purple-300 bg-purple-500/10 border border-purple-500/20'
-              : 'text-blue-400 bg-blue-500/10 border border-blue-500/20'
-          }`}>
-            {val}
-          </span>
+          <button
+            onClick={() => setSelectedTenantForPlan(row)}
+            className={`font-bold text-xs uppercase px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer transition-all hover:scale-105 ${
+              isEnterprise
+                ? 'text-purple-300 bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20'
+                : 'text-blue-400 bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20'
+            }`}
+            title="Click to modify tenant subscription plan"
+          >
+            <span>{val}</span>
+            <Sparkles className="h-3 w-3 text-amber-300" />
+          </button>
         );
       },
     },
@@ -116,13 +123,17 @@ export const SubscriptionsList: React.FC = () => {
     },
     {
       key: 'actions',
-      header: 'Manage',
+      header: 'Manage Plan',
       render: (_, row) => (
-        <Link to={`/platform/tenants`}>
-          <Button size="sm" variant="outline" className="text-[11px] py-1">
-            Configure
-          </Button>
-        </Link>
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-[11px] py-1 text-purple-300 border-purple-500/30 hover:bg-purple-950/40 hover:text-white"
+          onClick={() => setSelectedTenantForPlan(row)}
+          leftIcon={<Sparkles className="h-3 w-3 text-amber-300" />}
+        >
+          Change Plan
+        </Button>
       ),
     },
   ];
@@ -209,6 +220,13 @@ export const SubscriptionsList: React.FC = () => {
         searchPlaceholder="Search subscriber by tenant name, package, or contact email..."
         emptyTitle="No subscriptions found"
         emptyDescription="No customer accounts match the selected subscription billing status."
+      />
+
+      {/* Super User Change Subscription Plan Modal */}
+      <ChangePlanModal
+        isOpen={Boolean(selectedTenantForPlan)}
+        tenant={selectedTenantForPlan}
+        onClose={() => setSelectedTenantForPlan(null)}
       />
     </div>
   );

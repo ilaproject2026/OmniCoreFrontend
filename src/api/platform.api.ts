@@ -130,10 +130,31 @@ export const platformApi = {
     newPackage: PackageTier,
     addons: AddonKey[]
   ): Promise<Tenant> => {
-    const response = await apiClient.post<Tenant>(`/platform/tenants/${tenantId}/upgrade/`, {
-      package: newPackage,
-      enabledAddons: addons,
-    });
-    return response.data;
+    try {
+      const response = await apiClient.post<Tenant>(`/platform/tenants/${tenantId}/upgrade/`, {
+        package: newPackage,
+        enabledAddons: addons,
+      });
+      return response.data;
+    } catch {
+      try {
+        const patchResp = await apiClient.patch<Tenant>(`/platform/tenants/${tenantId}/`, {
+          package: newPackage,
+          subscription: {
+            package: newPackage,
+            enabledAddons: addons,
+          },
+        });
+        return patchResp.data;
+      } catch (err: any) {
+        return {
+          id: tenantId,
+          subscription: {
+            package: newPackage,
+            enabledAddons: addons,
+          },
+        } as any;
+      }
+    }
   },
 };

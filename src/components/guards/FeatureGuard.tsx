@@ -3,6 +3,7 @@ import { AddonKey } from '../../types';
 import { useTenant } from '../../contexts/TenantContext';
 
 interface FeatureGuardProps {
+  module?: string;
   feature?: string;
   addon?: AddonKey;
   fallback?: React.ReactNode;
@@ -10,12 +11,17 @@ interface FeatureGuardProps {
 }
 
 export const FeatureGuard: React.FC<FeatureGuardProps> = ({
+  module,
   feature,
   addon,
   fallback = null,
   children,
 }) => {
-  const { hasFeature, hasAddon } = useTenant();
+  const { hasFeature, hasAddon, isModuleAllowedByPlan } = useTenant();
+
+  if (module && !isModuleAllowedByPlan(module)) {
+    return <>{fallback}</>;
+  }
 
   if (addon && !hasAddon(addon)) {
     return <>{fallback}</>;

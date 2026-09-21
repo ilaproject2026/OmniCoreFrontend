@@ -79,6 +79,40 @@ export const authApi = {
       status: 'active',
     };
 
+    const tier = (payload.package_tier as any) || 'standard';
+    const initialTenant = {
+      id: rawUser.tenant_id || raw?.active_tenant?.id || `tenant_${Date.now()}`,
+      name: payload.company_name,
+      slug: payload.company_name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      status: 'active',
+      verticals: ['freight_logistics'],
+      subscription: {
+        package: tier,
+        status: 'active',
+        billingCycle: 'monthly',
+        mrr: tier === 'basic' ? 149 : tier === 'standard' ? 399 : tier === 'corporate' ? 899 : 1899,
+        startDate: new Date().toISOString().slice(0, 10),
+        renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        enabledAddons: tier === 'enterprise' ? ['addon_warehouse', 'addon_contracts', 'addon_cold_chain'] : [],
+        currency: 'USD',
+        autoRenew: true,
+      },
+      primaryContactName: `${payload.first_name || 'Admin'} ${payload.last_name || 'User'}`.trim(),
+      primaryContactEmail: payload.email,
+      primaryContactPhone: payload.phone || '',
+      vehicleCount: 0,
+      activeTripsCount: 0,
+      userCount: 1,
+      storageUsedGb: 0.1,
+      createdAt: new Date().toISOString().slice(0, 10),
+      updatedAt: new Date().toISOString().slice(0, 10),
+    };
+    try {
+      localStorage.setItem('omni_active_tenant', JSON.stringify(initialTenant));
+    } catch {
+      // Storage quota or SSR safe
+    }
+
     if (raw?.access) tokenStorage.setAccessToken(raw.access);
     if (raw?.refresh) tokenStorage.setRefreshToken(raw.refresh);
 

@@ -48,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { tenant, packageTier, enabledAddons, can } = useTenant();
+  const { tenant, packageTier, enabledAddons, can, isModuleAllowedByPlan, getRequiredTierForModule } = useTenant();
   const { user } = useAuth();
 
   // Platform / Super Admin Navigation Items
@@ -64,27 +64,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { label: 'Platform Audit Log', path: '/platform/audit', icon: ShieldCheck },
   ];
 
-  // Tenant Operations Navigation Items (All functions always present, permission-aware indicators)
+  // Tenant Operations Navigation Items (All functions always present, plan & permission-aware indicators)
   const tenantNav = [
     {
       label: 'Operations Hub',
       path: '/app/dashboard',
       icon: LayoutDashboard,
+      moduleKey: 'dashboard',
       isAccessible: true,
+      isPlanAllowed: true,
     },
     {
       label: 'Fleet Management',
       path: '/app/fleet',
       icon: Truck,
       badge: `${tenant.vehicleCount}`,
+      moduleKey: 'fleet',
       isAccessible: can('fleet.view'),
+      isPlanAllowed: isModuleAllowedByPlan('fleet'),
+      requiredTier: getRequiredTierForModule('fleet'),
       requiredPermission: 'fleet.view',
     },
     {
       label: 'Driver Directory',
       path: '/app/drivers',
       icon: Users,
+      moduleKey: 'drivers',
       isAccessible: can('drivers.view'),
+      isPlanAllowed: isModuleAllowedByPlan('drivers'),
+      requiredTier: getRequiredTierForModule('drivers'),
       requiredPermission: 'drivers.view',
     },
     {
@@ -93,7 +101,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Navigation,
       badge: `${tenant.activeTripsCount} live`,
       badgeVariant: 'success' as const,
+      moduleKey: 'trips',
       isAccessible: can('trips.view'),
+      isPlanAllowed: isModuleAllowedByPlan('trips'),
+      requiredTier: getRequiredTierForModule('trips'),
       requiredPermission: 'trips.view',
     },
     {
@@ -102,7 +113,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: PackageCheck,
       badge: 'AWB Hub',
       badgeVariant: 'success' as const,
+      moduleKey: 'courier',
       isAccessible: can('courier.view'),
+      isPlanAllowed: isModuleAllowedByPlan('courier'),
+      requiredTier: getRequiredTierForModule('courier'),
       requiredPermission: 'courier.view',
     },
     {
@@ -110,63 +124,90 @@ export const Sidebar: React.FC<SidebarProps> = ({
       path: '/app/shuttle',
       icon: Bus,
       badge: 'Routes',
+      moduleKey: 'shuttle',
       isAccessible: can('shuttle.view'),
+      isPlanAllowed: isModuleAllowedByPlan('shuttle'),
+      requiredTier: getRequiredTierForModule('shuttle'),
       requiredPermission: 'shuttle.view',
     },
     {
       label: 'Contracts & Tenders',
       path: '/app/contracts',
       icon: FileText,
+      moduleKey: 'contracts',
       isAccessible: can('contracts.view'),
+      isPlanAllowed: isModuleAllowedByPlan('contracts'),
+      requiredTier: getRequiredTierForModule('contracts'),
       requiredPermission: 'contracts.view',
     },
     {
       label: 'Workshop & Maintenance',
       path: '/app/maintenance',
       icon: Wrench,
+      moduleKey: 'maintenance',
       isAccessible: can('maintenance.view'),
+      isPlanAllowed: isModuleAllowedByPlan('maintenance'),
+      requiredTier: getRequiredTierForModule('maintenance'),
       requiredPermission: 'maintenance.view',
     },
     {
       label: 'Warehouse & Spare Parts',
       path: '/app/warehouse',
       icon: Boxes,
+      moduleKey: 'warehouse',
       isAccessible: can('warehouse.view'),
+      isPlanAllowed: isModuleAllowedByPlan('warehouse'),
+      requiredTier: getRequiredTierForModule('warehouse'),
       requiredPermission: 'warehouse.view',
     },
     {
       label: 'CRM & Pipeline',
       path: '/app/crm',
       icon: UserCheck,
+      moduleKey: 'crm',
       isAccessible: can('crm.view'),
+      isPlanAllowed: isModuleAllowedByPlan('crm'),
+      requiredTier: getRequiredTierForModule('crm'),
       requiredPermission: 'crm.view',
     },
     {
       label: 'Finance & Invoicing',
       path: '/app/finance',
       icon: DollarSign,
+      moduleKey: 'finance',
       isAccessible: can('finance.view'),
+      isPlanAllowed: isModuleAllowedByPlan('finance'),
+      requiredTier: getRequiredTierForModule('finance'),
       requiredPermission: 'finance.view',
     },
     {
       label: 'HR & Personnel',
       path: '/app/hr',
       icon: Users,
+      moduleKey: 'hr',
       isAccessible: can('hr.view'),
+      isPlanAllowed: isModuleAllowedByPlan('hr'),
+      requiredTier: getRequiredTierForModule('hr'),
       requiredPermission: 'hr.view',
     },
     {
       label: 'Insurance & Claims',
       path: '/app/insurance',
       icon: ShieldCheck,
+      moduleKey: 'insurance',
       isAccessible: can('insurance.view'),
+      isPlanAllowed: isModuleAllowedByPlan('insurance'),
+      requiredTier: getRequiredTierForModule('insurance'),
       requiredPermission: 'insurance.view',
     },
     {
       label: 'Marketing Campaigns',
       path: '/app/marketing',
       icon: Megaphone,
+      moduleKey: 'marketing',
       isAccessible: can('marketing.view'),
+      isPlanAllowed: isModuleAllowedByPlan('marketing'),
+      requiredTier: getRequiredTierForModule('marketing'),
       requiredPermission: 'marketing.view',
     },
     {
@@ -174,20 +215,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
       path: `/public/${tenant.slug || 'apex-global'}`,
       icon: Globe,
       badge: 'Live',
+      moduleKey: 'public_portal',
       isAccessible: true,
+      isPlanAllowed: true,
     },
     {
       label: 'Reports & Analytics',
       path: '/app/reports',
       icon: FileBarChart,
+      moduleKey: 'reports',
       isAccessible: can('reports.view'),
+      isPlanAllowed: true,
       requiredPermission: 'reports.view',
     },
     {
       label: 'Tenant Settings',
       path: '/app/settings',
       icon: Settings,
+      moduleKey: 'settings',
       isAccessible: can('settings.manage') || user?.tenantRole === 'tenant_admin',
+      isPlanAllowed: true,
       requiredPermission: 'settings.manage',
     },
   ];
@@ -269,7 +316,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {items.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname.startsWith(item.path);
+            const isPlanAllowed = (item as any).isPlanAllowed !== false;
             const isAccessible = (item as any).isAccessible !== false;
+            const isFullyActive = isPlanAllowed && isAccessible;
+            const requiredTier = (item as any).requiredTier;
 
             return (
               <NavLink
@@ -278,15 +328,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={onCloseMobile}
                 title={
                   collapsed
-                    ? `${item.label}${!isAccessible ? ' (Role Restricted)' : ''}`
+                    ? `${item.label}${!isPlanAllowed ? ` (${requiredTier?.toUpperCase()} Plan Required)` : !isAccessible ? ' (Role Restricted)' : ''}`
                     : undefined
                 }
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium transition-all group relative',
                   isActive
                     ? 'bg-blue-600 text-white font-semibold shadow-sm shadow-blue-500/20'
-                    : isAccessible
+                    : isFullyActive
                     ? 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-200'
+                    : !isPlanAllowed
+                    ? 'text-purple-300/80 hover:bg-purple-950/20 hover:text-purple-200'
                     : 'text-slate-500 hover:bg-slate-800/40 hover:text-slate-300'
                 )}
               >
@@ -295,17 +347,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     'h-4 w-4 shrink-0 transition-colors',
                     isActive
                       ? 'text-white'
-                      : isAccessible
+                      : isFullyActive
                       ? 'text-slate-400 group-hover:text-blue-400'
+                      : !isPlanAllowed
+                      ? 'text-purple-400/90 group-hover:text-purple-300'
                       : 'text-slate-500'
                   )}
                 />
                 {!collapsed && (
                   <>
-                    <span className={cn('truncate flex-1', !isAccessible && 'text-slate-400')}>
+                    <span
+                      className={cn(
+                        'truncate flex-1',
+                        !isFullyActive && !isPlanAllowed && 'text-slate-300',
+                        !isFullyActive && isPlanAllowed && 'text-slate-400'
+                      )}
+                    >
                       {item.label}
                     </span>
-                    {!isAccessible ? (
+
+                    {!isPlanAllowed ? (
+                      <span
+                        title={`This module requires the ${requiredTier?.toUpperCase()} Plan`}
+                        className="flex items-center gap-1 rounded bg-purple-950/70 px-1.5 py-0.5 text-[9px] font-bold text-purple-300 border border-purple-500/30 shrink-0 uppercase font-mono shadow-sm"
+                      >
+                        <Lock className="h-2.5 w-2.5 text-purple-400" />
+                        <span>{requiredTier}+</span>
+                      </span>
+                    ) : !isAccessible ? (
                       <span
                         title="Permission required for your role"
                         className="flex items-center gap-1 rounded bg-slate-800/80 px-1.5 py-0.5 text-[9px] font-medium text-amber-400/90 border border-amber-500/20 shrink-0"

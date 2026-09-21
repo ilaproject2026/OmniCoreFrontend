@@ -12,10 +12,12 @@ import { TenantGuard } from '../components/guards/TenantGuard';
 import { PermissionGuard } from '../components/guards/PermissionGuard';
 import { FeatureGuard } from '../components/guards/FeatureGuard';
 import { RoleAccessRestricted } from '../components/feedback/RoleAccessRestricted';
+import { PlanFeatureRestricted } from '../components/feedback/PlanFeatureRestricted';
 
 // Auth Pages
 import { Login } from '../features/auth/Login';
 import { Register } from '../features/auth/Register';
+import { PlanSelectionPage } from '../features/auth/PlanSelectionPage';
 import { MfaVerification } from '../features/auth/MfaVerification';
 import { ForgotPassword } from '../features/auth/ForgotPassword';
 import { ResetPassword } from '../features/auth/ResetPassword';
@@ -66,6 +68,9 @@ export const AppRoutes: React.FC = () => {
     <Routes>
       {/* Root SaaS Main Landing Page */}
       <Route path="/" element={<LandingPage />} />
+
+      {/* Standalone Full-Page Plan Selection (Step 2 of Onboarding) */}
+      <Route path="/auth/select-plan" element={<PlanSelectionPage />} />
 
       {/* A. Authentication Routes */}
       <Route path="/auth" element={<AuthLayout />}>
@@ -120,78 +125,148 @@ export const AppRoutes: React.FC = () => {
         <Route path="fleet" element={<FleetList />} />
         <Route path="drivers" element={<DriverList />} />
         <Route path="trips" element={<TripsHub />} />
-        <Route path="courier" element={<CourierDashboard />} />
-        <Route path="shuttle" element={<ShuttleDashboard />} />
+        <Route
+          path="courier"
+          element={
+            <FeatureGuard
+              module="courier"
+              fallback={<PlanFeatureRestricted moduleName="Courier & Express Delivery" requiredTier="standard" />}
+            >
+              <CourierDashboard />
+            </FeatureGuard>
+          }
+        />
+        <Route
+          path="shuttle"
+          element={
+            <FeatureGuard
+              module="shuttle"
+              fallback={<PlanFeatureRestricted moduleName="Corporate Commuter Shuttle" requiredTier="standard" />}
+            >
+              <ShuttleDashboard />
+            </FeatureGuard>
+          }
+        />
 
         {/* Entitlement & Permission Protected Routes */}
         <Route
           path="contracts"
           element={
-            <PermissionGuard
-              permission="contracts.view"
-              fallback={<RoleAccessRestricted moduleName="Contracts & Tenders" requiredPermission="contracts.view" />}
+            <FeatureGuard
+              module="contracts"
+              fallback={<PlanFeatureRestricted moduleName="Contracts & Tenders" requiredTier="corporate" />}
             >
-              <ContractsHub />
-            </PermissionGuard>
+              <PermissionGuard
+                permission="contracts.view"
+                fallback={<RoleAccessRestricted moduleName="Contracts & Tenders" requiredPermission="contracts.view" />}
+              >
+                <ContractsHub />
+              </PermissionGuard>
+            </FeatureGuard>
           }
         />
-        <Route path="maintenance" element={<MaintenanceHub />} />
+        <Route
+          path="maintenance"
+          element={
+            <FeatureGuard
+              module="maintenance"
+              fallback={<PlanFeatureRestricted moduleName="Workshop & Maintenance" requiredTier="standard" />}
+            >
+              <MaintenanceHub />
+            </FeatureGuard>
+          }
+        />
         <Route
           path="warehouse"
           element={
-            <PermissionGuard
-              permission="warehouse.view"
-              fallback={<RoleAccessRestricted moduleName="Warehouse & Spare Parts" requiredPermission="warehouse.view" />}
+            <FeatureGuard
+              module="warehouse"
+              fallback={<PlanFeatureRestricted moduleName="Warehouse & Spare Parts" requiredTier="corporate" />}
             >
-              <WarehouseHub />
-            </PermissionGuard>
+              <PermissionGuard
+                permission="warehouse.view"
+                fallback={<RoleAccessRestricted moduleName="Warehouse & Spare Parts" requiredPermission="warehouse.view" />}
+              >
+                <WarehouseHub />
+              </PermissionGuard>
+            </FeatureGuard>
           }
         />
         <Route
           path="crm"
           element={
-            <PermissionGuard
-              permission="crm.view"
-              fallback={<RoleAccessRestricted moduleName="CRM & Pipeline" requiredPermission="crm.view" />}
+            <FeatureGuard
+              module="crm"
+              fallback={<PlanFeatureRestricted moduleName="CRM & Sales Pipeline" requiredTier="corporate" />}
             >
-              <CrmHub />
-            </PermissionGuard>
+              <PermissionGuard
+                permission="crm.view"
+                fallback={<RoleAccessRestricted moduleName="CRM & Pipeline" requiredPermission="crm.view" />}
+              >
+                <CrmHub />
+              </PermissionGuard>
+            </FeatureGuard>
           }
         />
 
         <Route
           path="finance"
           element={
-            <PermissionGuard
-              permission="finance.view"
-              fallback={<RoleAccessRestricted moduleName="Finance & Invoicing" requiredPermission="finance.view" />}
+            <FeatureGuard
+              module="finance"
+              fallback={<PlanFeatureRestricted moduleName="Finance & Invoicing" requiredTier="standard" />}
             >
-              <FinanceHub />
-            </PermissionGuard>
+              <PermissionGuard
+                permission="finance.view"
+                fallback={<RoleAccessRestricted moduleName="Finance & Invoicing" requiredPermission="finance.view" />}
+              >
+                <FinanceHub />
+              </PermissionGuard>
+            </FeatureGuard>
           }
         />
         <Route
           path="hr"
           element={
-            <PermissionGuard
-              permission="hr.view"
-              fallback={<RoleAccessRestricted moduleName="HR & Personnel" requiredPermission="hr.view" />}
+            <FeatureGuard
+              module="hr"
+              fallback={<PlanFeatureRestricted moduleName="HR & Personnel Directory" requiredTier="corporate" />}
             >
-              <HrHub />
-            </PermissionGuard>
+              <PermissionGuard
+                permission="hr.view"
+                fallback={<RoleAccessRestricted moduleName="HR & Personnel" requiredPermission="hr.view" />}
+              >
+                <HrHub />
+              </PermissionGuard>
+            </FeatureGuard>
           }
         />
 
-        <Route path="insurance" element={<InsuranceHub />} />
+        <Route
+          path="insurance"
+          element={
+            <FeatureGuard
+              module="insurance"
+              fallback={<PlanFeatureRestricted moduleName="Insurance & Claims" requiredTier="corporate" />}
+            >
+              <InsuranceHub />
+            </FeatureGuard>
+          }
+        />
         <Route
           path="marketing"
           element={
-            <PermissionGuard
-              permission="marketing.view"
-              fallback={<RoleAccessRestricted moduleName="Marketing Campaigns" requiredPermission="marketing.view" />}
+            <FeatureGuard
+              module="marketing"
+              fallback={<PlanFeatureRestricted moduleName="Marketing Campaigns" requiredTier="corporate" />}
             >
-              <MarketingHub />
-            </PermissionGuard>
+              <PermissionGuard
+                permission="marketing.view"
+                fallback={<RoleAccessRestricted moduleName="Marketing Campaigns" requiredPermission="marketing.view" />}
+              >
+                <MarketingHub />
+              </PermissionGuard>
+            </FeatureGuard>
           }
         />
         <Route path="reports" element={<ReportsHub />} />

@@ -19,9 +19,11 @@ import {
   ExternalLink,
   ShieldAlert,
   Layers,
+  Sparkles,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { TenantProvisioningWizard } from './TenantProvisioningWizard';
+import { ChangePlanModal } from './ChangePlanModal';
 
 export const TenantList: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -30,6 +32,7 @@ export const TenantList: React.FC = () => {
 
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
+  const [tenantForPlanChange, setTenantForPlanChange] = useState<Tenant | null>(null);
 
   const { data: tenants = [], isLoading } = useQuery({
     queryKey: ['platformTenants', statusFilter],
@@ -96,10 +99,18 @@ export const TenantList: React.FC = () => {
       header: 'Tier & MRR',
       render: (_, row) => (
         <div>
-          <span className="font-semibold text-blue-400 uppercase text-[11px] block">
-            {row.subscription.package}
-          </span>
-          <span className="text-[11px] font-mono text-emerald-400">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setTenantForPlanChange(row);
+            }}
+            className="font-semibold text-blue-400 hover:text-cyan-300 uppercase text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
+            title="Click to modify subscription tier"
+          >
+            <span>{row.subscription.package}</span>
+            <Sparkles className="h-3 w-3 text-amber-300" />
+          </button>
+          <span className="text-[11px] font-mono text-emerald-400 block mt-0.5">
             {formatCurrency(row.subscription.mrr)}/mo
           </span>
         </div>
@@ -153,6 +164,15 @@ export const TenantList: React.FC = () => {
               <Layers className="h-3.5 w-3.5 text-purple-400" />
             </Button>
           </Link>
+
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setTenantForPlanChange(row)}
+            title="Modify Subscription Plan"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+          </Button>
 
           <Button
             variant="outline"
@@ -243,6 +263,15 @@ export const TenantList: React.FC = () => {
                 {getStatusBadge(selectedTenant.status)}
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setTenantForPlanChange(selectedTenant)}
+                  leftIcon={<Sparkles className="h-3.5 w-3.5 text-amber-300" />}
+                  className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold"
+                >
+                  Change Subscription Plan
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => setSelectedTenant(null)}>
                   Close
                 </Button>
@@ -325,6 +354,13 @@ export const TenantList: React.FC = () => {
           </div>
         </Modal>
       )}
+
+      {/* Super User Change Subscription Plan Modal */}
+      <ChangePlanModal
+        isOpen={Boolean(tenantForPlanChange)}
+        tenant={tenantForPlanChange}
+        onClose={() => setTenantForPlanChange(null)}
+      />
     </div>
   );
 };
