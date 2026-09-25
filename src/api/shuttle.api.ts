@@ -3,27 +3,27 @@ import { ShuttleRoute, ShuttleSchedule, ShuttlePassenger } from '../types';
 
 export const shuttleApi = {
   getRoutes: async (): Promise<ShuttleRoute[]> => {
-    const response = await apiClient.get('/api/v1/shuttle/routes/');
+    const response = await apiClient.get('/shuttle/routes/');
     return response.data;
   },
 
   getRouteById: async (id: string): Promise<ShuttleRoute | null> => {
-    const response = await apiClient.get(`/api/v1/shuttle/routes/${id}/`);
+    const response = await apiClient.get(`/shuttle/routes/${id}/`);
     return response.data;
   },
 
   createRoute: async (data: Partial<ShuttleRoute>): Promise<ShuttleRoute> => {
-    const response = await apiClient.post('/api/v1/shuttle/routes/', data);
+    const response = await apiClient.post('/shuttle/routes/', data);
     return response.data;
   },
 
   getSchedules: async (): Promise<ShuttleSchedule[]> => {
-    const response = await apiClient.get('/api/v1/shuttle/schedules/');
+    const response = await apiClient.get('/shuttle/schedules/');
     return response.data;
   },
 
   createSchedule: async (data: Partial<ShuttleSchedule>): Promise<ShuttleSchedule> => {
-    const response = await apiClient.post('/api/v1/shuttle/schedules/', data);
+    const response = await apiClient.post('/shuttle/schedules/', data);
     return response.data;
   },
 
@@ -31,12 +31,12 @@ export const shuttleApi = {
     id: string,
     status: ShuttleSchedule['status']
   ): Promise<ShuttleSchedule> => {
-    const response = await apiClient.patch(`/api/v1/shuttle/schedules/${id}/`, { status });
+    const response = await apiClient.patch(`/shuttle/schedules/${id}/`, { status });
     return response.data;
   },
 
   getPassengers: async (routeId?: string): Promise<ShuttlePassenger[]> => {
-    const response = await apiClient.get('/api/v1/shuttle/passengers/', { params: { routeId } });
+    const response = await apiClient.get('/shuttle/passengers/', { params: { routeId } });
     return response.data;
   },
 
@@ -44,7 +44,7 @@ export const shuttleApi = {
     passengerId: string,
     hasBoarded: boolean
   ): Promise<ShuttlePassenger> => {
-    const response = await apiClient.post(`/api/v1/shuttle/passengers/${passengerId}/board/`, { hasBoarded });
+    const response = await apiClient.post(`/shuttle/passengers/${passengerId}/board/`, { hasBoarded });
     return response.data;
   },
 };

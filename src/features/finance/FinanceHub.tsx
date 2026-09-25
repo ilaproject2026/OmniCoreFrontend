@@ -45,9 +45,9 @@ export const FinanceHub: React.FC = () => {
 
   // New Invoice Form State
   const [newInvoice, setNewInvoice] = useState({
-    clientName: 'Pfizer BioPharma North America',
+    clientName: '',
     customerId: '',
-    amount: 12500,
+    amount: 0,
   });
 
   // Payment Recording State
@@ -55,7 +55,7 @@ export const FinanceHub: React.FC = () => {
     amount: 0,
     paymentMethod: 'wire' as Payment['paymentMethod'],
     referenceNumber: '',
-    bankAccount: 'JPMorgan Operating Account (*4091)',
+    bankAccount: '',
     notes: '',
   });
 

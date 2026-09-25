@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { platformApi } from '../../api/platform.api';
 import { DataTable, ColumnDef } from '../../components/tables/DataTable';
@@ -10,15 +10,27 @@ import { formatCurrency, formatDate } from '../../lib/utils';
 import { Receipt, RefreshCw, CheckCircle2, AlertTriangle, ArrowUpRight, DollarSign, Calendar, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ChangePlanModal } from './ChangePlanModal';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
 
 export const SubscriptionsList: React.FC = () => {
+  const { user } = useAuth();
+  const { tenant: currentTenant } = useTenant();
+  const isPlatformRootAdmin = Boolean(user?.isPlatformUser || user?.platformRole === 'super_admin');
+
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedTenantForPlan, setSelectedTenantForPlan] = useState<Tenant | null>(null);
 
-  const { data: tenants = [], isLoading: isTenantsLoading } = useQuery({
+  const { data: rawTenants = [], isLoading: isTenantsLoading } = useQuery({
     queryKey: ['platformTenants'],
     queryFn: () => platformApi.getTenants(),
+    enabled: isPlatformRootAdmin,
   });
+
+  const tenants = useMemo(() => {
+    if (isPlatformRootAdmin) return rawTenants;
+    return [currentTenant];
+  }, [isPlatformRootAdmin, rawTenants, currentTenant]);
 
   const { data: stats, isLoading: isStatsLoading } = useQuery({
     queryKey: ['platformStats'],

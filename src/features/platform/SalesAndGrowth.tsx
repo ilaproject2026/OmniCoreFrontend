@@ -49,63 +49,30 @@ interface SalesDeal {
 
 export const SalesAndGrowth: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [deals, setDeals] = useState<SalesDeal[]>([
-    {
-      id: 'deal_1',
-      dealCode: 'OPP-2026-901',
-      prospectName: 'TransNational Reefer Logistics Corp',
-      primaryContact: 'David Sterling (VP of Ops)',
-      targetTier: 'enterprise',
-      estimatedAcv: 38400,
-      stage: 'negotiation',
-      probability: 85,
-      accountExecutive: 'Sarah Jenkins',
-      expectedCloseDate: '2026-10-15',
-    },
-    {
-      id: 'deal_2',
-      dealCode: 'OPP-2026-902',
-      prospectName: 'Midwest Intermodal Express LLC',
-      primaryContact: 'Marcus Reynolds (Fleet Director)',
-      targetTier: 'corporate',
-      estimatedAcv: 18200,
-      stage: 'poc_trial',
-      probability: 70,
-      accountExecutive: 'Alex Rivera',
-      expectedCloseDate: '2026-10-28',
-    },
-    {
-      id: 'deal_3',
-      dealCode: 'OPP-2026-903',
-      prospectName: 'Alliance Haulage & Energy Carriers',
-      primaryContact: 'Elena Rostova (COO)',
-      targetTier: 'enterprise',
-      estimatedAcv: 42000,
-      stage: 'demo',
-      probability: 50,
-      accountExecutive: 'Sarah Jenkins',
-      expectedCloseDate: '2026-11-10',
-    },
-    {
-      id: 'deal_4',
-      dealCode: 'OPP-2026-904',
-      prospectName: 'Apex Urban Courier Networks',
-      primaryContact: 'Tariq Al-Mansoor (GM)',
-      targetTier: 'corporate',
-      estimatedAcv: 15600,
-      stage: 'closed_won',
-      probability: 100,
-      accountExecutive: 'Devon Vance',
-      expectedCloseDate: '2026-09-18',
-    },
-  ]);
+  const [deals, setDeals] = useState<SalesDeal[]>(() => {
+    const saved = localStorage.getItem('omni_sales_deals');
+    if (saved) {
+      try {
+        const parsed: SalesDeal[] = JSON.parse(saved);
+        return parsed.filter(
+          (d) =>
+            !['OPP-2026-901', 'OPP-2026-902', 'OPP-2026-903', 'OPP-2026-904'].includes(d.dealCode) &&
+            !d.prospectName.includes('TransNational') &&
+            !d.prospectName.includes('Apex Urban')
+        );
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
 
   // Form state
   const [prospectName, setProspectName] = useState('');
   const [primaryContact, setPrimaryContact] = useState('');
   const [targetTier, setTargetTier] = useState<'corporate' | 'enterprise'>('enterprise');
   const [estimatedAcv, setEstimatedAcv] = useState(25000);
-  const [accountExecutive, setAccountExecutive] = useState('Sarah Jenkins');
+  const [accountExecutive, setAccountExecutive] = useState('');
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ['platformStats'],
@@ -125,11 +92,13 @@ export const SalesAndGrowth: React.FC = () => {
       estimatedAcv: Number(estimatedAcv),
       stage: 'lead',
       probability: 40,
-      accountExecutive,
+      accountExecutive: accountExecutive || 'Platform Admin',
       expectedCloseDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
     };
 
-    setDeals([newDeal, ...deals]);
+    const updated = [newDeal, ...deals];
+    setDeals(updated);
+    localStorage.setItem('omni_sales_deals', JSON.stringify(updated));
     setIsModalOpen(false);
     setProspectName('');
     setPrimaryContact('');

@@ -18,7 +18,11 @@ export const MfaVerification: React.FC = () => {
       await verifyMfa(code);
       navigate('/app/dashboard');
     } catch (err: any) {
-      setError(err.message || 'Invalid verification code');
+      let msg = err?.message || 'Invalid verification code';
+      if (typeof msg === 'object') {
+        msg = msg?.message || msg?.detail || JSON.stringify(msg);
+      }
+      setError(typeof msg === 'string' ? msg : 'Invalid verification code');
     }
   };
 
@@ -37,7 +41,7 @@ export const MfaVerification: React.FC = () => {
 
       {error && (
         <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400">
-          {error}
+          {typeof error === 'string' ? error : String(error)}
         </div>
       )}
 

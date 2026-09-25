@@ -27,40 +27,42 @@ import {
   Lock,
 } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
+import { useTenant } from '../../contexts/TenantContext';
 
 export const WarehouseHub: React.FC = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
   const [activeTab, setActiveTab] = useState('inventory');
   const [warehouseFilter, setWarehouseFilter] = useState('all');
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [isAddPartModalOpen, setIsAddPartModalOpen] = useState(false);
   const [isSealModalOpen, setIsSealModalOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<ShipmentConsolidationGroup | null>(null);
-  const [sealNumberInput, setSealNumberInput] = useState('SEAL-2026-');
-  const [sealVehicleInput, setSealVehicleInput] = useState('IL-6102-FR');
+  const [sealNumberInput, setSealNumberInput] = useState('');
+  const [sealVehicleInput, setSealVehicleInput] = useState('');
 
   const [newPart, setNewPart] = useState({
     sku: '',
     name: '',
     category: 'tyres' as SparePart['category'],
-    warehouseId: 'wh_01',
-    availableQuantity: 10,
-    minQuantity: 5,
-    reorderLevel: 8,
-    unitCost: 150,
-    sellingPrice: 200,
-    locationBin: 'RACK-01',
-    supplierName: 'Commercial Fleet Direct',
+    warehouseId: '',
+    availableQuantity: 0,
+    minQuantity: 0,
+    reorderLevel: 0,
+    unitCost: 0,
+    sellingPrice: 0,
+    locationBin: '',
+    supplierName: '',
   });
 
   // Queries
   const { data: warehouses = [] } = useQuery({
-    queryKey: ['warehouses'],
+    queryKey: ['warehouses', tenant.id],
     queryFn: () => warehouseApi.getWarehouses(),
   });
 
   const { data: parts = [], isLoading } = useQuery({
-    queryKey: ['spareParts', warehouseFilter, lowStockOnly],
+    queryKey: ['spareParts', tenant.id, warehouseFilter, lowStockOnly],
     queryFn: () => warehouseApi.getSpareParts({ warehouseId: warehouseFilter, lowStockOnly }),
   });
 

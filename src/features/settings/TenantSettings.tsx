@@ -7,7 +7,7 @@ import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
 import { Tabs } from '../../components/common/Tabs';
 import { ADDONS, VERTICALS, PACKAGES } from '../../config/constants';
-import { PackageTier, AddonKey } from '../../types';
+import { PackageTier, AddonKey, VerticalType } from '../../types';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -23,17 +23,19 @@ import {
   Briefcase,
   Truck,
   ArrowRight,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
 import { PackageUpgradeModal } from '../platform/PackageUpgradeModal';
 
 export const TenantSettings: React.FC = () => {
   const { user } = useAuth();
-  const { tenant, packageTier, enabledAddons, setPackageTier, toggleAddon, customRolePermissions } = useTenant();
+  const { tenant, packageTier, enabledAddons, setPackageTier, toggleAddon, updateTenantVerticals } = useTenant();
   const [activeTab, setActiveTab] = useState('organization');
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
-  const isSuperAdmin = Boolean(user?.isPlatformUser || user?.platformRole === 'super_admin');
+  const isSuperAdmin = Boolean(user?.isPlatformUser || user?.platformRole === 'omnicore_admin' || user?.platformRole === 'super_admin');
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -107,7 +109,7 @@ export const TenantSettings: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
               {(['basic', 'standard', 'corporate', 'enterprise'] as PackageTier[]).map((tier) => {
                 const isSelected = packageTier === tier;
                 const pkg = PACKAGES[tier];
@@ -186,31 +188,87 @@ export const TenantSettings: React.FC = () => {
       {/* Tab 3: Verticals */}
       {activeTab === 'verticals' && (
         <Card className="p-6 space-y-4 text-xs">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
             <div>
-              <h3 className="font-semibold text-sm text-white">Licensed Transport Verticals</h3>
-              <p className="text-slate-400 text-[11px]">Active industry vertical operational logic</p>
+              <h3 className="font-semibold text-sm text-white flex items-center gap-2">
+                <Truck className="h-4 w-4 text-blue-400" />
+                Licensed Transport Verticals & Service Entitlements
+              </h3>
+              <p className="text-slate-400 text-[11px]">
+                {isSuperAdmin
+                  ? 'OmniCore Project Admin: Toggle vertical service support for this customer organization.'
+                  : 'Active transport industry services contracted and provisioned by your OmniCore Project Manager.'}
+              </p>
             </div>
+            {isSuperAdmin && (
+              <Badge variant="purple" size="sm">
+                OmniCore Admin Managed
+              </Badge>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {tenant.verticals.map((v) => {
-              const def = VERTICALS[v] || { name: v, description: 'Specialized domain', features: [] };
+          {!isSuperAdmin && (
+            <div className="p-3.5 rounded-xl border border-blue-500/30 bg-blue-950/20 text-slate-300 text-[11px] space-y-1">
+              <span className="font-semibold text-white block">Vertical-Based Service Access:</span>
+              <p className="text-slate-400">
+                Your workspace modules and navigation are governed by these granted verticals. If your business requires software support for new services (e.g. Courier & Express Delivery or Tourist Bus Services), request vertical activation from your OmniCore Project Manager.
+              </p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            {Object.values(VERTICALS).map((def) => {
+              const isActive = (tenant.verticals || []).includes(def.id as VerticalType);
+
+              // Customer admins only see granted verticals unless they are viewing the catalog
+              if (!isSuperAdmin && !isActive) return null;
 
               return (
-                <div key={v} className="p-3.5 rounded-xl border border-slate-800 bg-[#0f172a] space-y-2">
+                <div
+                  key={def.id}
+                  className={`p-4 rounded-xl border transition-all space-y-3 ${
+                    isActive
+                      ? 'border-blue-500/50 bg-blue-950/20 shadow-sm'
+                      : 'border-slate-800/80 bg-slate-900/30 opacity-70'
+                  }`}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-white">{def.name}</span>
-                    <Badge variant="glow" size="sm">Active</Badge>
+                    <span className="font-bold text-white text-xs">{def.name}</span>
+                    <Badge variant={isActive ? 'glow' : 'default'} size="xs">
+                      {isActive ? 'Active Service' : 'Not Granted'}
+                    </Badge>
                   </div>
-                  <p className="text-[11px] text-slate-400">{def.description}</p>
-                  <div className="flex flex-wrap gap-1 pt-1">
+                  <p className="text-[11px] text-slate-400 leading-relaxed">{def.description}</p>
+                  
+                  <div className="flex flex-wrap gap-1">
                     {def.features.map((f) => (
                       <span key={f} className="bg-slate-800 text-slate-300 text-[10px] px-1.5 py-0.5 rounded">
                         {f}
                       </span>
                     ))}
                   </div>
+
+                  {isSuperAdmin && (
+                    <div className="pt-2 border-t border-slate-800/60 flex items-center justify-end">
+                      <Button
+                        size="xs"
+                        variant={isActive ? 'outline' : 'primary'}
+                        onClick={async () => {
+                          const current = tenant.verticals || [];
+                          let next: VerticalType[];
+                          if (isActive) {
+                            next = current.filter((item) => item !== def.id);
+                          } else {
+                            next = [...current, def.id as VerticalType];
+                          }
+                          await updateTenantVerticals(tenant.id, next);
+                        }}
+                        className="text-[10px]"
+                      >
+                        {isActive ? 'Revoke Service' : 'Grant Service to Customer'}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -221,62 +279,68 @@ export const TenantSettings: React.FC = () => {
       {/* Tab 4: Security */}
       {activeTab === 'security' && (
         <div className="space-y-4 text-xs">
-          {/* Super Admin Control Callout */}
+          {/* OmniCore Admin Control Callout */}
           <div className="p-4 rounded-xl border border-purple-500/30 bg-purple-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-purple-500/20 text-purple-300">
                 <Crown className="h-5 w-5" />
               </div>
               <div>
-                <span className="font-bold text-white text-xs block">Platform Role Hierarchy & RBAC Matrix</span>
+                <span className="font-bold text-white text-xs block">OmniCore Customer Vertical Entitlements & RBAC</span>
                 <span className="text-slate-400 text-[11px]">
-                  Super Admin has supreme authority to customize permissions for Manager, Fleet, HR, and other roles.
+                  Access is governed by software service contracts. The OmniCore Project Admin grants customers access to specific transport verticals.
                 </span>
               </div>
             </div>
             {isSuperAdmin ? (
               <Link to="/platform/roles">
                 <Button variant="primary" size="sm" className="bg-purple-600 hover:bg-purple-500 text-xs font-semibold shrink-0" rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>
-                  Customize Role Permissions
+                  Manage Customer Entitlements
                 </Button>
               </Link>
             ) : (
-              <Badge variant="purple" size="sm">Super Admin Configured</Badge>
+              <Badge variant="purple" size="sm">OmniCore Admin Governed</Badge>
             )}
           </div>
 
           {/* Role Hierarchy Breakdown */}
           <Card className="p-5 space-y-3">
-            <h4 className="font-bold text-white text-xs">Tenant Role Permissions Hierarchy</h4>
+            <h4 className="font-bold text-white text-xs">Ecosystem Role Hierarchy</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="p-3 rounded-lg border border-purple-500/30 bg-slate-900/60 space-y-1">
+              <div className="p-3.5 rounded-lg border border-purple-500/30 bg-slate-900/60 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-purple-300 text-xs flex items-center gap-1">
-                    <Crown className="h-3.5 w-3.5 text-amber-400" /> Platform Super Admin
+                    <Crown className="h-3.5 w-3.5 text-amber-400" /> OmniCore Project Admin
                   </span>
-                  <Badge variant="purple" size="xs">Supreme (*)</Badge>
+                  <Badge variant="purple" size="xs">Super Admin</Badge>
                 </div>
-                <p className="text-[10px] text-slate-400">Controls everything across platform and tenants. Can set customized permissions.</p>
+                <p className="text-[10px] text-slate-400 leading-normal">
+                  Main project administrator. Controls customer onboarding, provisioning, and grants access to specific service verticals.
+                </p>
               </div>
 
-              <div className="p-3 rounded-lg border border-blue-500/30 bg-slate-900/60 space-y-1">
+              <div className="p-3.5 rounded-lg border border-blue-500/30 bg-slate-900/60 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-blue-300 text-xs flex items-center gap-1">
-                    <Building2 className="h-3.5 w-3.5 text-blue-400" /> Tenant Admin
+                    <Building2 className="h-3.5 w-3.5 text-blue-400" /> Customer Admin (Org Manager)
                   </span>
-                  <Badge variant="info" size="xs">Full Tenant (*)</Badge>
+                  <Badge variant="info" size="xs">Customer Admin</Badge>
                 </div>
-                <p className="text-[10px] text-slate-400">Manages fleet, drivers, dispatch, warehouse, finance, hr, and settings under Super Admin.</p>
+                <p className="text-[10px] text-slate-400 leading-normal">
+                  Executive management of the customer organization. Has administrative authority restricted to their granted service verticals.
+                </p>
               </div>
 
-              <div className="p-3 rounded-lg border border-emerald-500/30 bg-slate-900/60 space-y-1">
+              <div className="p-3.5 rounded-lg border border-emerald-500/30 bg-slate-900/60 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-emerald-300 text-xs flex items-center gap-1">
-                    <Briefcase className="h-3.5 w-3.5 text-emerald-400" /> Operations Manager
+                    <Truck className="h-3.5 w-3.5 text-emerald-400" /> Vertical Operations Staff
                   </span>
-                  <Badge variant="success" size="xs">Role Scoped</Badge>
+                  <Badge variant="success" size="xs">Staff Operations</Badge>
                 </div>
-                <p className="text-[10px] text-slate-400">Finance, HR, insurance claims, marketing campaigns, and reports analytics.</p>
+                <p className="text-[10px] text-slate-400 leading-normal">
+                  Operational dispatchers, drivers, and agents performing daily workflows within active contracted verticals.
+                </p>
               </div>
             </div>
           </Card>

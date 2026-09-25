@@ -5,7 +5,8 @@ import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
 import { Badge } from '../../components/common/Badge';
-import { platformApi } from '../../api/platform.api';
+import { platformApi, BACKEND_PACKAGE_UUID_FALLBACKS } from '../../api/platform.api';
+import { useQuery } from '@tanstack/react-query';
 import { VERTICALS, PACKAGES, ADDONS } from '../../config/constants';
 import { VerticalType, PackageTier, AddonKey } from '../../types';
 import {
@@ -24,18 +25,40 @@ import {
   ShieldCheck,
   AlertTriangle,
   XCircle,
+  AlertCircle,
 } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
+import { useTenant } from '../../contexts/TenantContext';
+import { PlanFeatureRestricted } from '../../components/feedback/PlanFeatureRestricted';
 
 export const TenantProvisioningWizard: React.FC = () => {
   const navigate = useNavigate();
+  const { canCreateMultipleTenants } = useTenant();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [provisionProgress, setProvisionProgress] = useState(0);
+
+  if (!canCreateMultipleTenants) {
+    return (
+      <div className="py-8">
+        <PlanFeatureRestricted
+          moduleName="Multiple Tenant Provisioning"
+          requiredTier="enterprise"
+          description="Multi-subsidiary and multiple tenant creation is an exclusive capability of the OmniCore Enterprise plan. Upgrade to Enterprise to spin up and orchestrate multiple isolated tenant workspaces."
+        />
+      </div>
+    );
+  }
   const [provisionStageText, setProvisionStageText] = useState('');
   const [isProvisioned, setIsProvisioned] = useState(false);
   const [provisionError, setProvisionError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]> | null>(null);
+
+  // Load packages from backend to resolve real UUIDs
+  const { data: backendPackages = [] } = useQuery({
+    queryKey: ['backendPackages'],
+    queryFn: () => platformApi.getPackages(),
+  });
 
   // Form State across 8 Steps
   const [companyInfo, setCompanyInfo] = useState({
@@ -64,6 +87,7 @@ export const TenantProvisioningWizard: React.FC = () => {
     phone: '',
     tempPassword: 'OmniSecurePass2026!',
   });
+  const [stepValidationError, setStepValidationError] = useState<string | null>(null);
 
   const toggleVertical = (v: VerticalType) => {
     if (selectedVerticals.includes(v)) {
@@ -93,19 +117,20 @@ export const TenantProvisioningWizard: React.FC = () => {
   const totalMonthlyMrr = pkgPrice + addonsPrice;
 
   const validateStep = (step: number): boolean => {
+    setStepValidationError(null);
     if (step === 1) {
       if (!companyInfo.name.trim()) {
-        alert('Please enter the Company / Fleet Operator Name.');
+        setStepValidationError('Please enter the Company / Fleet Operator Name.');
         return false;
       }
       if (!companyInfo.primaryContactEmail.trim() && !adminUser.email.trim()) {
-        alert('Please enter a Commercial Contact Email.');
+        setStepValidationError('Please enter a Commercial Contact Email.');
         return false;
       }
     }
     if (step === 6) {
       if (!adminUser.email.trim() && !companyInfo.primaryContactEmail.trim()) {
-        alert('Please enter an Administrator Email address.');
+        setStepValidationError('Please enter an Administrator Email address.');
         return false;
       }
     }
@@ -134,11 +159,11 @@ export const TenantProvisioningWizard: React.FC = () => {
     }
 
     try {
-      const companyName = companyInfo.name.trim() || 'Apex Global Logistics';
+      const companyName = companyInfo.name.trim() || 'New Tenant Workspace';
       const email =
         companyInfo.primaryContactEmail.trim() ||
         adminUser.email.trim() ||
-        `admin@${companyInfo.slug || 'apexlogistics'}.com`;
+        `admin@${companyInfo.slug || 'tenant'}.com`;
 
       // Persist to API with both DRF backend required fields and frontend model fields
       await platformApi.createTenant({
@@ -177,10 +202,22 @@ export const TenantProvisioningWizard: React.FC = () => {
           password: adminUser.tempPassword,
         },
 
-        // Subscription details
-        package: selectedPackage,
+        // Subscription details with valid backend Package UUID
+        package:
+          backendPackages.find((p) => p.code?.toLowerCase() === selectedPackage.toLowerCase())?.id ||
+          BACKEND_PACKAGE_UUID_FALLBACKS[selectedPackage] ||
+          '18321b13-9bd0-4d52-ac59-607ef6ae260d',
+        package_tier: selectedPackage,
+        package_id:
+          backendPackages.find((p) => p.code?.toLowerCase() === selectedPackage.toLowerCase())?.id ||
+          BACKEND_PACKAGE_UUID_FALLBACKS[selectedPackage] ||
+          '18321b13-9bd0-4d52-ac59-607ef6ae260d',
         subscription: {
           package: selectedPackage,
+          package_id:
+            backendPackages.find((p) => p.code?.toLowerCase() === selectedPackage.toLowerCase())?.id ||
+            BACKEND_PACKAGE_UUID_FALLBACKS[selectedPackage] ||
+            '18321b13-9bd0-4d52-ac59-607ef6ae260d',
           status: 'active',
           billingCycle: subscriptionConfig.billingCycle,
           startDate: new Date().toISOString(),
@@ -292,7 +329,7 @@ export const TenantProvisioningWizard: React.FC = () => {
               <Input
                 label="Company / Fleet Operator Name"
                 required
-                placeholder="e.g. Apex Global Logistics"
+                placeholder="e.g. Acme Transport Logistics"
                 value={companyInfo.name}
                 onChange={(e) => {
                   const val = e.target.value;
@@ -307,7 +344,7 @@ export const TenantProvisioningWizard: React.FC = () => {
               <Input
                 label="Tenant Subdomain / Slug"
                 required
-                placeholder="e.g. apex-global"
+                placeholder="e.g. acme-transport"
                 value={companyInfo.slug}
                 onChange={(e) => setCompanyInfo({ ...companyInfo, slug: e.target.value })}
                 helperText="Subdomain: https://[slug].omnicore.io"
@@ -316,7 +353,7 @@ export const TenantProvisioningWizard: React.FC = () => {
               <Input
                 label="Primary Contact Person"
                 required
-                placeholder="e.g. Marcus Sterling"
+                placeholder="e.g. Jane Doe"
                 value={companyInfo.primaryContactName}
                 onChange={(e) => setCompanyInfo({ ...companyInfo, primaryContactName: e.target.value })}
               />
@@ -325,7 +362,7 @@ export const TenantProvisioningWizard: React.FC = () => {
                 label="Commercial Contact Email"
                 type="email"
                 required
-                placeholder="e.g. admin@apexlogistics.com"
+                placeholder="e.g. admin@company.com"
                 value={companyInfo.primaryContactEmail}
                 onChange={(e) => setCompanyInfo({ ...companyInfo, primaryContactEmail: e.target.value })}
               />
@@ -420,7 +457,7 @@ export const TenantProvisioningWizard: React.FC = () => {
               <p className="text-xs text-slate-400">Select base license package determining core limits and foundational modules.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
               {Object.values(PACKAGES).map((pkg) => {
                 const isSelected = selectedPackage === pkg.id;
 
@@ -631,7 +668,7 @@ export const TenantProvisioningWizard: React.FC = () => {
                 label="Admin Email (Login Username)"
                 type="email"
                 required
-                placeholder="e.g. sjenkins@apexlogistics.com"
+                placeholder="e.g. admin@company.com"
                 value={adminUser.email}
                 onChange={(e) => setAdminUser({ ...adminUser, email: e.target.value })}
               />
@@ -667,10 +704,10 @@ export const TenantProvisioningWizard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
               <div className="rounded-lg border border-slate-800 bg-[#0f172a]/70 p-3.5 space-y-2 text-xs">
                 <p className="font-semibold text-slate-200 border-b border-slate-800 pb-1">Tenant Organization</p>
-                <div className="flex justify-between"><span className="text-slate-400">Company:</span> <span className="text-white font-medium">{companyInfo.name || 'Apex Global Logistics'}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Subdomain:</span> <span className="text-blue-400 font-mono">{companyInfo.slug || 'apex-global'}.omnicore.io</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Location:</span> <span className="text-slate-200">{companyInfo.city || 'Chicago'}, {companyInfo.country}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Contact:</span> <span className="text-slate-200">{companyInfo.primaryContactName || 'Marcus Sterling'}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Company:</span> <span className="text-white font-medium">{companyInfo.name || 'Organization Workspace'}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Subdomain:</span> <span className="text-blue-400 font-mono">{companyInfo.slug || 'workspace'}.omnicore.io</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Location:</span> <span className="text-slate-200">{companyInfo.city || ''}, {companyInfo.country}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Contact:</span> <span className="text-slate-200">{companyInfo.primaryContactName || `${adminUser.firstName} ${adminUser.lastName}`.trim()}</span></div>
               </div>
 
               <div className="rounded-lg border border-slate-800 bg-[#0f172a]/70 p-3.5 space-y-2 text-xs">
@@ -683,8 +720,8 @@ export const TenantProvisioningWizard: React.FC = () => {
 
               <div className="md:col-span-2 rounded-lg border border-slate-800 bg-[#0f172a]/70 p-3.5 space-y-2 text-xs">
                 <p className="font-semibold text-slate-200 border-b border-slate-800 pb-1">Root Administrator</p>
-                <div className="flex justify-between"><span className="text-slate-400">Administrator:</span> <span className="text-white font-medium">{adminUser.firstName || 'Sarah'} {adminUser.lastName || 'Jenkins'}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Login Email:</span> <span className="text-blue-400 font-mono">{adminUser.email || companyInfo.primaryContactEmail || 'admin@apexlogistics.com'}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Administrator:</span> <span className="text-white font-medium">{`${adminUser.firstName} ${adminUser.lastName}`.trim() || 'Admin'}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Login Email:</span> <span className="text-blue-400 font-mono">{adminUser.email || companyInfo.primaryContactEmail}</span></div>
               </div>
             </div>
           </div>
@@ -768,7 +805,7 @@ export const TenantProvisioningWizard: React.FC = () => {
 
                 <h3 className="text-2xl font-bold text-white">Tenant Activated Successfully!</h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  <strong>{companyInfo.name || 'Apex Global Logistics'}</strong> is now live on the OmniCore ecosystem with {selectedVerticals.length} verticals, {selectedPackage.toUpperCase()} tier, and {selectedAddons.length} specialized add-ons.
+                  <strong>{companyInfo.name || 'Your organization'}</strong> is now live on the OmniCore ecosystem with {selectedVerticals.length} verticals, {selectedPackage.toUpperCase()} tier, and {selectedAddons.length} specialized add-ons.
                 </p>
 
                 <div className="pt-4 flex items-center justify-center gap-3">
@@ -792,14 +829,24 @@ export const TenantProvisioningWizard: React.FC = () => {
           </div>
         )}
 
+        {stepValidationError && (
+          <div className="mt-4 p-3.5 rounded-xl border border-red-500/30 bg-red-500/10 text-xs text-red-400 flex items-center gap-2.5">
+            <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
+            <span>{stepValidationError}</span>
+          </div>
+        )}
+
         {/* Wizard Navigation Footer */}
         {currentStep < 8 && (
           <div className="mt-8 pt-4 border-t border-slate-800 flex items-center justify-between">
             <Button
               variant="outline"
               size="sm"
-              disabled={currentStep === 1}
-              onClick={() => setCurrentStep((s) => Math.max(1, s - 1))}
+              disabled={currentStep === 1 || isSubmitting}
+              onClick={() => {
+                setStepValidationError(null);
+                setCurrentStep((s) => Math.max(1, s - 1));
+              }}
               leftIcon={<ChevronLeft className="h-4 w-4" />}
             >
               Previous Step
@@ -809,7 +856,12 @@ export const TenantProvisioningWizard: React.FC = () => {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => setCurrentStep((s) => Math.min(7, s + 1))}
+                onClick={() => {
+                  if (validateStep(currentStep)) {
+                    setStepValidationError(null);
+                    setCurrentStep((s) => Math.min(7, s + 1));
+                  }
+                }}
                 rightIcon={<ChevronRight className="h-4 w-4" />}
               >
                 Proceed to Step {currentStep + 1}
@@ -818,7 +870,13 @@ export const TenantProvisioningWizard: React.FC = () => {
               <Button
                 variant="success"
                 size="sm"
-                onClick={startProvisioning}
+                disabled={isSubmitting}
+                isLoading={isSubmitting}
+                onClick={() => {
+                  if (validateStep(1) && validateStep(6)) {
+                    startProvisioning();
+                  }
+                }}
                 rightIcon={<Sparkles className="h-4 w-4" />}
               >
                 Deploy & Provision Tenant

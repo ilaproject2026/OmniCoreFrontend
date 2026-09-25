@@ -38,6 +38,19 @@ export interface PackageDefinition {
   recommendedFor: string;
 }
 
+export interface BackendPackage {
+  id: string; // UUID in backend database
+  code: string; // e.g. "ENTERPRISE", "CORPORATE", "STANDARD"
+  name: string;
+  description?: string;
+  price_monthly?: string | number;
+  price_yearly?: string | number;
+  max_vehicles?: number | null;
+  max_users?: number | null;
+  is_active?: boolean;
+  features?: string[];
+}
+
 export type AddonKey =
   | 'addon_warehouse'
   | 'addon_contracts'
@@ -102,6 +115,7 @@ export interface Tenant {
 }
 
 export type PlatformRole =
+  | 'omnicore_admin' // OmniCore Project Admin (Main Super Admin)
   | 'super_admin'
   | 'sales_admin'
   | 'finance_admin'
@@ -109,14 +123,28 @@ export type PlatformRole =
   | 'platform_auditor';
 
 export type TenantRole =
+  | 'customer_admin' // Customer Admin (Organization Manager)
+  | 'tenant_admin' // Alias for backward compatibility
+  | 'vertical_operator' // Customer staff operator for specific verticals
+  | 'customer_staff'; // Customer staff member
+
+export type CoreSystemRole =
+  | 'omnicore_admin'
+  | 'super_admin'
+  | 'customer_admin'
   | 'tenant_admin'
-  | 'operations_manager'
-  | 'fleet_manager'
-  | 'finance_user'
-  | 'hr_user'
-  | 'warehouse_user'
-  | 'sales_crm_user'
-  | 'driver_field_user';
+  | 'vertical_operator'
+  | 'customer_staff';
+
+export interface VerticalEntitlement {
+  id: VerticalType;
+  name: string;
+  description: string;
+  icon: string;
+  badgeColor: string;
+  features: string[];
+  isGranted: boolean;
+}
 
 export type UserRole = PlatformRole | TenantRole;
 
@@ -131,6 +159,7 @@ export interface User {
   platformRole?: PlatformRole;
   tenantId?: string;
   tenantRole?: TenantRole;
+  customRoleTitle?: string;
   permissions: string[];
   mfaEnabled: boolean;
   lastLogin?: string;

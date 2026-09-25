@@ -13,6 +13,7 @@ import { Modal } from '../../components/common/Modal';
 import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
 import { Trip, Booking, TripStatus, VerticalType, VehicleType, Vehicle } from '../../types';
+import { useTenant } from '../../contexts/TenantContext';
 import { DispatchBoard } from './DispatchBoard';
 import { TripDetailsDrawer } from './TripDetailsDrawer';
 import {
@@ -55,13 +56,13 @@ const formatVehicleType = (type?: string) => {
 
 export const TripsHub: React.FC = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
   const [activeTab, setActiveTab] = useState<'trips' | 'bookings' | 'dispatch'>('trips');
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [isNewBookingModalOpen, setIsNewBookingModalOpen] = useState(false);
   const [bookingToAssign, setBookingToAssign] = useState<Booking | null>(null);
   const [assignModalVehicleId, setAssignModalVehicleId] = useState<string>('');
 
-  // New booking form state
   // New booking form state
   const [newBooking, setNewBooking] = useState<{
     customerName: string;
@@ -88,32 +89,32 @@ export const TripsHub: React.FC = () => {
   });
 
   const { data: trips = [], isLoading: isTripsLoading } = useQuery({
-    queryKey: ['trips'],
+    queryKey: ['trips', tenant.id],
     queryFn: () => tripsApi.getTrips(),
   });
 
   const { data: bookings = [], isLoading: isBookingsLoading } = useQuery({
-    queryKey: ['bookings'],
+    queryKey: ['bookings', tenant.id],
     queryFn: () => tripsApi.getBookings(),
   });
 
   const { data: availableVehicles = [] } = useQuery({
-    queryKey: ['fleetVehicles', 'available'],
+    queryKey: ['fleetVehicles', tenant.id, 'available'],
     queryFn: () => fleetApi.getVehicles({ status: 'available' }),
   });
 
   const { data: allDrivers = [] } = useQuery({
-    queryKey: ['drivers'],
+    queryKey: ['drivers', tenant.id],
     queryFn: () => driversApi.getDrivers(),
   });
 
   const { data: customers = [] } = useQuery({
-    queryKey: ['crmCustomers'],
+    queryKey: ['crmCustomers', tenant.id],
     queryFn: () => crmApi.getCustomers(),
   });
 
   const { data: contracts = [] } = useQuery({
-    queryKey: ['contracts'],
+    queryKey: ['contracts', tenant.id],
     queryFn: () => contractsApi.getContracts(),
   });
 

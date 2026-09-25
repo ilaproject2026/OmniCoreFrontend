@@ -3,16 +3,19 @@ import { useQuery } from '@tanstack/react-query';
 import { branchesApi } from '../../api/branches.api';
 import { MapPin, ChevronDown, Check, Building } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { Branch } from '../../types';
+import { useClickOutside } from '../../hooks/useClickOutside';
+import { useTenant } from '../../contexts/TenantContext';
 
 export const BranchSwitcher: React.FC = () => {
+  const { tenant } = useTenant();
   const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
     return localStorage.getItem('omnicore_active_branch') || 'all';
   });
   const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useClickOutside<HTMLDivElement>(() => setIsOpen(false), isOpen);
 
   const { data: branches = [] } = useQuery({
-    queryKey: ['branches'],
+    queryKey: ['branches', tenant.id],
     queryFn: () => branchesApi.getBranches(),
   });
 
@@ -25,7 +28,7 @@ export const BranchSwitcher: React.FC = () => {
   };
 
   return (
-    <div className="relative hidden md:block">
+    <div ref={containerRef} className="relative hidden md:block">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-1.5 rounded-lg border border-slate-700/60 bg-slate-800/30 px-2 py-1.5 text-xs text-slate-300 hover:bg-slate-700/60 hover:text-white transition-all max-w-[170px] cursor-pointer"
@@ -39,10 +42,8 @@ export const BranchSwitcher: React.FC = () => {
       </button>
 
       {isOpen && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setIsOpen(false)} />
-          <div className="absolute left-0 top-full mt-2 w-64 rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-2xl z-40">
-            <div className="px-2.5 py-1.5 border-b border-slate-800 mb-1">
+        <div className="absolute left-0 top-full mt-2 w-64 rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-2xl z-40">
+          <div className="px-2.5 py-1.5 border-b border-slate-800 mb-1">
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                 Regional Operating Hub / Branch
               </p>
@@ -88,7 +89,6 @@ export const BranchSwitcher: React.FC = () => {
               );
             })}
           </div>
-        </>
       )}
     </div>
   );

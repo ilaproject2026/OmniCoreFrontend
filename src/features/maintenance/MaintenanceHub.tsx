@@ -39,173 +39,43 @@ import {
   Award,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../lib/utils';
+import { useTenant } from '../../contexts/TenantContext';
 
-// Workshop facilities directory data
-const WORKSHOP_FACILITIES = [
-  {
-    id: 'ws_01',
-    name: 'Apex Central Heavy Depot & Workshop',
-    location: 'Chicago, IL',
-    address: '9200 W Bryn Mawr Ave, Rosemont, IL',
-    phone: '+1 (312) 555-8920',
-    operatingHours: '24/7 Fleet Coverage',
-    totalBays: 6,
-    specialization: 'Heavy Duty Diesel & Powertrain Overhauls',
-    activeVehicles: ['IL-6102-FR', 'IL-5531-BS'],
-    leadTechnician: 'Marcus Sterling',
-  },
-  {
-    id: 'ws_02',
-    name: 'Thermo King & Carrier Certified Hub',
-    location: 'Chicago, IL',
-    address: '4450 S Pulaski Rd, Chicago, IL',
-    phone: '+1 (312) 555-9114',
-    operatingHours: '06:00 - 22:00 Mon-Sat',
-    totalBays: 4,
-    specialization: 'Cold Chain Refrigeration Units & Pharma Calibrations',
-    activeVehicles: ['IL-9428-TX', 'IL-7890-CL'],
-    leadTechnician: 'Arthur Dent',
-  },
-  {
-    id: 'ws_03',
-    name: 'Apex Great Lakes Heavy Bay',
-    location: 'Milwaukee, WI',
-    address: '2201 S 43rd St, Milwaukee, WI',
-    phone: '+1 (414) 555-4011',
-    operatingHours: '07:00 - 23:00 Mon-Fri',
-    totalBays: 4,
-    specialization: 'Turbochargers, Transmissions & Severe-Duty Repairs',
-    activeVehicles: ['WI-3211-BT'],
-    leadTechnician: 'Travis Becker',
-  },
-  {
-    id: 'ws_04',
-    name: 'Michelin & Goodyear Commercial Tyre Center',
-    location: 'Joliet, IL',
-    address: '3100 Channahon Rd, Joliet, IL',
-    phone: '+1 (815) 555-7300',
-    operatingHours: '07:00 - 20:00 Mon-Sat',
-    totalBays: 4,
-    specialization: 'Drive & Steer Tandem Balancing, Tyre Truing & Laser Alignment',
-    activeVehicles: ['IL-6102-FR'],
-    leadTechnician: 'Dave Miller',
-  },
-  {
-    id: 'ws_05',
-    name: 'Tesla Commercial EV Service Hub',
-    location: 'Schaumburg, IL',
-    address: '1300 E Woodfield Rd, Schaumburg, IL',
-    phone: '+1 (847) 555-2200',
-    operatingHours: '08:00 - 18:00 Mon-Fri',
-    totalBays: 2,
-    specialization: 'Megawatt High-Voltage Battery Packs & Inverter Diagnostics',
-    activeVehicles: ['IL-2244-EV'],
-    leadTechnician: 'Elena Rostova',
-  },
-  {
-    id: 'ws_06',
-    name: 'Midwest Heavy Truck Specialist',
-    location: 'Gary, IN',
-    address: '2400 E 5th Ave, Gary, IN',
-    phone: '+1 (219) 555-6621',
-    operatingHours: '06:00 - 21:00 Mon-Sat',
-    totalBays: 5,
-    specialization: 'Cummins X15 Engine Diagnostics & Meritor Air Disc Brakes',
-    activeVehicles: ['IL-3399-FL'],
-    leadTechnician: 'Robbie Chen',
-  },
-];
+export interface WorkshopFacility {
+  id: string;
+  name: string;
+  location: string;
+  address: string;
+  phone: string;
+  operatingHours: string;
+  totalBays: number;
+  specialization: string;
+  activeVehicles: string[];
+  leadTechnician: string;
+}
 
-// Certified Technicians and Mechanics
-const TECHNICIANS_ROSTER = [
-  {
-    id: 'tech_01',
-    name: 'Marcus Sterling',
-    title: 'Master Heavy Diesel Specialist',
-    workshopId: 'ws_01',
-    workshopName: 'Apex Central Heavy Depot, Chicago',
-    certifications: ['ASE Master Medium/Heavy Truck', 'Detroit DD15 Specialist', 'Allison Certified'],
-    experience: '16 Years',
-    status: 'on_shift',
-    phone: '+1 (312) 555-0142',
-    activeJobs: 2,
-  },
-  {
-    id: 'tech_02',
-    name: 'Arthur Dent',
-    title: 'Master Refrigeration & Pharma Telematics Specialist',
-    workshopId: 'ws_02',
-    workshopName: 'Thermo King & Carrier Certified Hub, Chicago',
-    certifications: ['EPA 608 Universal Certification', 'Carrier Transicold Master Tech', 'Thermo King Certified'],
-    experience: '14 Years',
-    status: 'on_shift',
-    phone: '+1 (312) 555-0188',
-    activeJobs: 1,
-  },
-  {
-    id: 'tech_03',
-    name: 'Travis Becker',
-    title: 'Senior Master Heavy Powertrain Mechanic',
-    workshopId: 'ws_03',
-    workshopName: 'Apex Great Lakes Heavy Bay, Milwaukee',
-    certifications: ['PACCAR MX Engine Master', 'Garrett Turbo Systems Specialist', 'Meritor Drivetrain'],
-    experience: '18 Years',
-    status: 'in_bay',
-    phone: '+1 (414) 555-0199',
-    activeJobs: 1,
-  },
-  {
-    id: 'tech_04',
-    name: 'Dave Miller',
-    title: 'Chassis, Suspension & Tyre Systems Lead',
-    workshopId: 'ws_04',
-    workshopName: 'Michelin & Goodyear Commercial Tyre Center, Joliet',
-    certifications: ['TIA Certified Commercial Tire Master', 'Hunter Laser Alignment Tech', 'Bendix Brake Expert'],
-    experience: '11 Years',
-    status: 'on_shift',
-    phone: '+1 (815) 555-0177',
-    activeJobs: 1,
-  },
-  {
-    id: 'tech_05',
-    name: 'Elena Rostova',
-    title: 'Lead EV Commercial Powertrain Engineer',
-    workshopId: 'ws_05',
-    workshopName: 'Tesla Commercial EV Service Hub, Schaumburg',
-    certifications: ['High Voltage Safety Level 4', 'Tesla Commercial Fleet Powertrain', 'Bendix Pneumatic Systems'],
-    experience: '9 Years',
-    status: 'on_shift',
-    phone: '+1 (847) 555-0155',
-    activeJobs: 1,
-  },
-  {
-    id: 'tech_06',
-    name: 'Robbie Chen',
-    title: 'Senior Cummins & Heavy Commercial Tech',
-    workshopId: 'ws_06',
-    workshopName: 'Midwest Heavy Truck Specialist, Gary, IN',
-    certifications: ['Cummins Insite & QuickCheck Master', 'Meritor Disc Brakes', 'ASE T4 Brake Systems'],
-    experience: '12 Years',
-    status: 'on_shift',
-    phone: '+1 (219) 555-0123',
-    activeJobs: 1,
-  },
-  {
-    id: 'tech_07',
-    name: "Kevin O'Connor",
-    title: 'Commercial Hybrid & Light Duty Specialist',
-    workshopId: 'ws_01',
-    workshopName: 'Apex Central Workshop (Hybrid Bay), Chicago',
-    certifications: ['Toyota Hybrid Systems Master', 'ASE A6 Electrical/Electronic', 'Regenerative Braking Tech'],
-    experience: '8 Years',
-    status: 'standby',
-    phone: '+1 (312) 555-0167',
-    activeJobs: 0,
-  },
-];
+export interface Technician {
+  id: string;
+  name: string;
+  title: string;
+  workshopId: string;
+  workshopName: string;
+  certifications: string[];
+  experience: string;
+  status: 'on_shift' | 'in_bay' | 'standby';
+  phone: string;
+  activeJobs: number;
+}
+
+// Workshop facilities directory data (Loaded dynamically from organization operations)
+const WORKSHOP_FACILITIES: WorkshopFacility[] = [];
+
+// Certified Technicians and Mechanics (Loaded dynamically from organization operations)
+const TECHNICIANS_ROSTER: Technician[] = [];
 
 export const MaintenanceHub: React.FC = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
 
   // Navigation & filter state
   const [activeTab, setActiveTab] = useState<'orders' | 'vehicles' | 'workshops'>('orders');
@@ -219,25 +89,25 @@ export const MaintenanceHub: React.FC = () => {
 
   // Queries
   const { data: records = [], isLoading: isLoadingRecords } = useQuery({
-    queryKey: ['maintenanceRecords'],
+    queryKey: ['maintenanceRecords', tenant.id],
     queryFn: () => maintenanceApi.getRecords(),
   });
 
   const { data: vehicles = [], isLoading: isLoadingVehicles } = useQuery({
-    queryKey: ['fleetVehicles', 'all', 'all'],
+    queryKey: ['fleetVehicles', tenant.id, 'all', 'all'],
     queryFn: () => fleetApi.getVehicles({ status: 'all', vertical: 'all' }),
   });
 
   // New Work Order Form State (Initiation before repair - no pre-emptive cost)
   const [newOrder, setNewOrder] = useState({
-    vehicleId: 'veh_01',
-    vehicleReg: 'IL-9428-TX',
+    vehicleId: '',
+    vehicleReg: '',
     type: 'preventive' as MaintenanceType,
-    workshopName: 'Apex Central Heavy Depot & Workshop, Chicago',
-    technicianName: 'Marcus Sterling (Master Heavy Diesel Specialist)',
+    workshopName: '',
+    technicianName: '',
     issueDescription: '',
     actionTaken: '',
-    odometerAtService: 88500,
+    odometerAtService: 0,
     priority: 'normal' as 'normal' | 'urgent',
     estimatedDays: 1,
   });
@@ -320,14 +190,14 @@ export const MaintenanceHub: React.FC = () => {
       setIsNewOrderModalOpen(false);
       // Reset form
       setNewOrder({
-        vehicleId: 'veh_01',
-        vehicleReg: 'IL-9428-TX',
+        vehicleId: '',
+        vehicleReg: '',
         type: 'preventive',
-        workshopName: 'Apex Central Heavy Depot & Workshop, Chicago',
-        technicianName: 'Marcus Sterling (Master Heavy Diesel Specialist)',
+        workshopName: '',
+        technicianName: '',
         issueDescription: '',
         actionTaken: '',
-        odometerAtService: 88500,
+        odometerAtService: 0,
         priority: 'normal',
         estimatedDays: 1,
       });
@@ -964,55 +834,65 @@ export const MaintenanceHub: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {WORKSHOP_FACILITIES.map((ws) => (
-                <div key={ws.id} className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h4 className="font-bold text-white text-sm">{ws.name}</h4>
-                      <span className="text-xs text-blue-400 flex items-center gap-1 mt-0.5">
-                        <MapPin className="h-3 w-3" />
-                        {ws.address}
+            {WORKSHOP_FACILITIES.length === 0 ? (
+              <div className="p-8 text-center bg-slate-900/40 border border-slate-800 rounded-xl">
+                <Building2 className="h-8 w-8 text-slate-600 mx-auto mb-2" />
+                <p className="text-sm font-semibold text-slate-300">No Authorized Workshop Centers Configured</p>
+                <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                  Commercial maintenance bays and authorized heavy depots will appear here once configured for your fleet operations.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {WORKSHOP_FACILITIES.map((ws) => (
+                  <div key={ws.id} className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="font-bold text-white text-sm">{ws.name}</h4>
+                        <span className="text-xs text-blue-400 flex items-center gap-1 mt-0.5">
+                          <MapPin className="h-3 w-3" />
+                          {ws.address}
+                        </span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 font-mono shrink-0">
+                        {ws.totalBays} Bays
                       </span>
                     </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 font-mono shrink-0">
-                      {ws.totalBays} Bays
-                    </span>
-                  </div>
 
-                  <div className="p-2.5 rounded-lg bg-slate-800/40 border border-slate-800 text-xs space-y-1.5">
-                    <div className="flex items-center justify-between text-slate-300">
-                      <span className="text-slate-400">Specialization:</span>
-                      <span className="font-medium text-right text-slate-200">{ws.specialization}</span>
+                    <div className="p-2.5 rounded-lg bg-slate-800/40 border border-slate-800 text-xs space-y-1.5">
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span className="text-slate-400">Specialization:</span>
+                        <span className="font-medium text-right text-slate-200">{ws.specialization}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span className="text-slate-400">Lead Mechanic:</span>
+                        <span className="font-medium text-cyan-400">{ws.leadTechnician}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span className="text-slate-400">Hours:</span>
+                        <span className="text-slate-200">{ws.operatingHours}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-slate-300">
-                      <span className="text-slate-400">Lead Mechanic:</span>
-                      <span className="font-medium text-cyan-400">{ws.leadTechnician}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-300">
-                      <span className="text-slate-400">Hours:</span>
-                      <span className="text-slate-200">{ws.operatingHours}</span>
-                    </div>
-                  </div>
 
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold block mb-1">
-                      Active Vehicles in Workshop Bays:
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {ws.activeVehicles.map((reg) => (
-                        <span
-                          key={reg}
-                          className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-white font-mono text-[11px] font-bold"
-                        >
-                          {reg}
-                        </span>
-                      ))}
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-semibold block mb-1">
+                        Active Vehicles in Workshop Bays:
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {ws.activeVehicles.map((reg) => (
+                          <span
+                            key={reg}
+                            className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-white font-mono text-[11px] font-bold"
+                          >
+                            {reg}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Certified Mechanics Roster Section */}
@@ -1027,59 +907,69 @@ export const MaintenanceHub: React.FC = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {TECHNICIANS_ROSTER.map((tech) => (
-                <div key={tech.id} className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-600/20 text-cyan-400 font-bold shrink-0">
-                        <User className="h-5 w-5" />
+            {TECHNICIANS_ROSTER.length === 0 ? (
+              <div className="p-8 text-center bg-slate-900/40 border border-slate-800 rounded-xl">
+                <User className="h-8 w-8 text-slate-600 mx-auto mb-2" />
+                <p className="text-sm font-semibold text-slate-300">No Certified Technicians Registered</p>
+                <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                  Master mechanics and specialized diagnostic engineers assigned to your organization will be listed here.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {TECHNICIANS_ROSTER.map((tech) => (
+                  <div key={tech.id} className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-600/20 text-cyan-400 font-bold shrink-0">
+                          <User className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <span className="font-bold text-white text-sm block">{tech.name}</span>
+                          <span className="text-[11px] text-cyan-400 font-medium">{tech.title}</span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="font-bold text-white text-sm block">{tech.name}</span>
-                        <span className="text-[11px] text-cyan-400 font-medium">{tech.title}</span>
+
+                      <Badge
+                        variant={tech.status === 'in_bay' ? 'danger' : tech.status === 'on_shift' ? 'success' : 'default'}
+                        size="sm"
+                      >
+                        {tech.status === 'in_bay' ? 'In Bay Repair' : tech.status === 'on_shift' ? 'On Shift' : 'Standby'}
+                      </Badge>
+                    </div>
+
+                    <div className="text-xs space-y-1 text-slate-300">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Depot:</span>
+                        <span className="font-medium truncate max-w-[190px]">{tech.workshopName}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Commercial Experience:</span>
+                        <span className="font-semibold text-white">{tech.experience}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Assigned Active Jobs:</span>
+                        <span className="font-semibold text-cyan-400">{tech.activeJobs} Jobs</span>
                       </div>
                     </div>
 
-                    <Badge
-                      variant={tech.status === 'in_bay' ? 'danger' : tech.status === 'on_shift' ? 'success' : 'default'}
-                      size="sm"
-                    >
-                      {tech.status === 'in_bay' ? 'In Bay Repair' : tech.status === 'on_shift' ? 'On Shift' : 'Standby'}
-                    </Badge>
-                  </div>
-
-                  <div className="text-xs space-y-1 text-slate-300">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Depot:</span>
-                      <span className="font-medium truncate max-w-[190px]">{tech.workshopName}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Commercial Experience:</span>
-                      <span className="font-semibold text-white">{tech.experience}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Assigned Active Jobs:</span>
-                      <span className="font-mono font-bold text-amber-400">{tech.activeJobs} Jobs</span>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-semibold block mb-1">Certifications:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {tech.certifications.map((cert) => (
+                          <span
+                            key={cert}
+                            className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-800 border border-slate-700 text-slate-300"
+                          >
+                            ✓ {cert}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
-
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold block mb-1">Certifications:</span>
-                    <div className="flex flex-wrap gap-1">
-                      {tech.certifications.map((cert) => (
-                        <span
-                          key={cert}
-                          className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-800 border border-slate-700 text-slate-300"
-                        >
-                          ✓ {cert}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1382,37 +1272,57 @@ export const MaintenanceHub: React.FC = () => {
             />
 
             {/* Assigned Workshop */}
-            <Select
-              label="Authorized Workshop Center & Bay"
-              required
-              value={newOrder.workshopName}
-              onChange={(e) => {
-                const name = e.target.value;
-                const ws = WORKSHOP_FACILITIES.find((w) => w.name === name);
-                const tech = ws ? ws.leadTechnician : newOrder.technicianName;
-                setNewOrder({
-                  ...newOrder,
-                  workshopName: name,
-                  technicianName: tech,
-                });
-              }}
-              options={WORKSHOP_FACILITIES.map((w) => ({
-                value: w.name,
-                label: `${w.name} (${w.location})`,
-              }))}
-            />
+            {WORKSHOP_FACILITIES.length > 0 ? (
+              <Select
+                label="Authorized Workshop Center & Bay"
+                required
+                value={newOrder.workshopName}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  const ws = WORKSHOP_FACILITIES.find((w) => w.name === name);
+                  const tech = ws ? ws.leadTechnician : newOrder.technicianName;
+                  setNewOrder({
+                    ...newOrder,
+                    workshopName: name,
+                    technicianName: tech,
+                  });
+                }}
+                options={WORKSHOP_FACILITIES.map((w) => ({
+                  value: w.name,
+                  label: `${w.name} (${w.location})`,
+                }))}
+              />
+            ) : (
+              <Input
+                label="Authorized Workshop Center & Bay"
+                required
+                placeholder="e.g. Authorized Commercial Fleet Bay 1"
+                value={newOrder.workshopName}
+                onChange={(e) => setNewOrder({ ...newOrder, workshopName: e.target.value })}
+              />
+            )}
 
             {/* Lead Mechanic / Worker Name */}
-            <Select
-              label="Assigned Lead Worker / Mechanic"
-              required
-              value={newOrder.technicianName}
-              onChange={(e) => setNewOrder({ ...newOrder, technicianName: e.target.value })}
-              options={TECHNICIANS_ROSTER.map((t) => ({
-                value: `${t.name} (${t.title})`,
-                label: `${t.name} — ${t.title}`,
-              }))}
-            />
+            {TECHNICIANS_ROSTER.length > 0 ? (
+              <Select
+                label="Assigned Lead Worker / Mechanic"
+                required
+                value={newOrder.technicianName}
+                onChange={(e) => setNewOrder({ ...newOrder, technicianName: e.target.value })}
+                options={TECHNICIANS_ROSTER.map((t) => ({
+                  value: `${t.name} (${t.title})`,
+                  label: `${t.name} — ${t.title}`,
+                }))}
+              />
+            ) : (
+              <Input
+                label="Assigned Lead Worker / Mechanic"
+                required
+                placeholder="e.g. Lead Certified Technician"
+                value={newOrder.technicianName}
+                onChange={(e) => setNewOrder({ ...newOrder, technicianName: e.target.value })}
+              />
+            )}
 
             {/* Odometer at Service */}
             <Input

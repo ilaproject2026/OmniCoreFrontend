@@ -385,7 +385,6 @@ export const SupportTickets: React.FC = () => {
                       {t.name} ({t.slug})
                     </option>
                   ))}
-                  {tenants.length === 0 && <option value="Apex Logistics">Apex Logistics</option>}
                 </select>
               </div>
 

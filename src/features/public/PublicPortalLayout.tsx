@@ -17,7 +17,7 @@ import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 
 export const PublicPortalLayout: React.FC = () => {
-  const { tenantSlug = 'apex-global' } = useParams<{ tenantSlug: string }>();
+  const { tenantSlug = 'workspace' } = useParams<{ tenantSlug: string }>();
   const [cms, setCms] = useState<TenantPublicCms | null>(null);
   const [trackingInput, setTrackingInput] = useState('');
   const navigate = useNavigate();
@@ -71,7 +71,7 @@ export const PublicPortalLayout: React.FC = () => {
             </div>
             <div>
               <span className="font-bold text-base text-white tracking-tight block">
-                {cms?.companyName || 'Apex Logistics'}
+                {cms?.companyName || 'Logistics Workspace'}
               </span>
               <span className="text-[10px] text-slate-400 block -mt-1 font-medium">
                 Customer Services & Booking

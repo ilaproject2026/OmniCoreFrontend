@@ -68,9 +68,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, isPlatform = fa
             <BranchSwitcher />
           </>
         ) : (
-          <div className="flex items-center gap-2 rounded-lg bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 text-xs font-semibold text-purple-300">
-            <Shield className="h-3.5 w-3.5" />
-            <span>Platform Super Admin Workspace</span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 text-xs font-semibold text-purple-300">
+              <Shield className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Super Admin Workspace</span>
+            </div>
+            <TenantSwitcher />
           </div>
         )}
 
@@ -80,14 +83,24 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, isPlatform = fa
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* Workspace Switcher Link */}
-        {user?.isPlatformUser && (
+        {/* Workspace Switcher Link for Super Admins */}
+        {(user?.isPlatformUser || user?.platformRole === 'super_admin' || user?.platformRole === 'omnicore_admin') && (
           <Link
             to={isPlatform ? '/app/dashboard' : '/platform/dashboard'}
-            className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-700/60 bg-slate-800/40 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors"
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-800/60 px-2.5 py-1.5 text-xs font-semibold text-slate-200 hover:text-white hover:bg-slate-700/80 hover:border-slate-600 transition-all shadow-sm"
+            title={isPlatform ? 'Go to Operations Hub (Fleet, Drivers, Dispatch)' : 'Go to Super Admin Portal (Organization Governance & Plans)'}
           >
-            <LayoutDashboard className="h-3.5 w-3.5 text-blue-400" />
-            {isPlatform ? 'Switch to Tenant Operations' : 'Switch to Super Admin'}
+            {isPlatform ? (
+              <>
+                <LayoutDashboard className="h-3.5 w-3.5 text-blue-400" />
+                <span>Operations Hub</span>
+              </>
+            ) : (
+              <>
+                <Shield className="h-3.5 w-3.5 text-purple-400" />
+                <span>Super Admin Portal</span>
+              </>
+            )}
           </Link>
         )}
 
@@ -127,7 +140,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, isPlatform = fa
             {user?.avatar ? (
               <img
                 src={user.avatar}
-                alt={user.firstName}
+                alt={user.firstName || 'User'}
                 className="h-7 w-7 rounded-full object-cover ring-1 ring-slate-700"
               />
             ) : (

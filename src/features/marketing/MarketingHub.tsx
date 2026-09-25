@@ -59,6 +59,17 @@ export const MarketingHub: React.FC = () => {
     setIsNewPostModalOpen(false);
   };
 
+  const totalSpend =
+    campaigns.reduce((acc, c) => acc + (c.spend || 0), 0) +
+    socialPosts.reduce((acc, p) => acc + (p.spend || 0), 0);
+
+  const totalImpressions = socialPosts.reduce((acc, p) => acc + (p.reach || 0), 0);
+  const totalLeads = campaigns.reduce((acc, c) => acc + (c.leadsGenerated || 0), 0);
+  const averageRoi =
+    campaigns.length > 0
+      ? Math.round(campaigns.reduce((acc, c) => acc + (c.roi || 0), 0) / campaigns.length)
+      : 0;
+
   const campaignColumns: ColumnDef<MarketingCampaign>[] = [
     {
       key: 'name',
@@ -149,29 +160,29 @@ export const MarketingHub: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <StatCard
           title="Total Marketing Spend"
-          value={formatCurrency(41200)}
-          subtitle="Past 90 days"
+          value={formatCurrency(totalSpend)}
+          subtitle="All active channels"
           icon={<DollarSign className="h-4 w-4" />}
           accentColor="purple"
         />
         <StatCard
           title="Social Ad Impressions"
-          value="73,650 Reach"
+          value={`${totalImpressions.toLocaleString()} Reach`}
           subtitle="LinkedIn & Instagram"
           icon={<Eye className="h-4 w-4" />}
           accentColor="blue"
         />
         <StatCard
           title="Qualified B2B Leads"
-          value="164 Leads"
-          subtitle="Enterprise Haulage Inquiries"
+          value={`${totalLeads} Leads`}
+          subtitle="Enterprise Inquiries"
           icon={<Users className="h-4 w-4" />}
           accentColor="emerald"
         />
         <StatCard
           title="Blended B2B ROI"
-          value="+460%"
-          subtitle="High contract value conversions"
+          value={averageRoi > 0 ? `+${averageRoi}%` : '0%'}
+          subtitle="Conversion attribution"
           icon={<TrendingUp className="h-4 w-4" />}
           accentColor="emerald"
         />
@@ -200,8 +211,27 @@ export const MarketingHub: React.FC = () => {
       {/* ================= TAB 2: SOCIAL MEDIA & DIGITAL PROMOTIONS ================= */}
       {activeTab === 'social' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {socialPosts.map((post) => {
+          {socialPosts.length === 0 ? (
+            <Card className="p-10 text-center border-slate-800 bg-slate-900/40">
+              <Megaphone className="h-10 w-10 text-slate-600 mx-auto mb-3" />
+              <h3 className="text-white font-semibold text-sm">No Social Promotions Active</h3>
+              <p className="text-slate-400 text-xs mt-1 max-w-md mx-auto">
+                No social media posts or digital promotions published yet. Click &quot;Create Social Post&quot; above to launch a campaign across LinkedIn, Google, Facebook, or Instagram.
+              </p>
+              <div className="mt-4">
+                <Button
+                  size="sm"
+                  variant="primary"
+                  leftIcon={<Plus className="h-4 w-4" />}
+                  onClick={() => setIsNewPostModalOpen(true)}
+                >
+                  Create Social Post
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {socialPosts.map((post) => {
               const channelColors: Record<string, string> = {
                 LinkedIn: 'bg-blue-600/20 text-blue-400 border-blue-500/30',
                 Instagram: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
@@ -261,8 +291,9 @@ export const MarketingHub: React.FC = () => {
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
+    )}
 
       {/* ================= MODAL: CREATE SOCIAL POST ================= */}
       <Modal

@@ -112,7 +112,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
           <label className="text-xs font-semibold text-slate-300">
             Select New Subscription Plan Tier:
           </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             {tiers.map((t) => {
               const def = PACKAGES[t];
               const isCurrent = t === currentTier;

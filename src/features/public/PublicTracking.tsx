@@ -22,8 +22,8 @@ import { QueryStateWrapper } from '../../components/common/QueryStateWrapper';
 
 export const PublicTracking: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { tenantSlug = 'apex-global' } = useParams<{ tenantSlug: string }>();
-  const initialAwb = searchParams.get('awb') || 'AWB-EXP-88910';
+  const { tenantSlug = 'workspace' } = useParams<{ tenantSlug: string }>();
+  const initialAwb = searchParams.get('awb') || '';
 
   const [query, setQuery] = useState(initialAwb);
   const [activeAwb, setActiveAwb] = useState(initialAwb);

@@ -11,7 +11,7 @@ export const AuthLayout: React.FC = () => {
         <div className="absolute bottom-0 left-0 -ml-20 -mb-20 h-96 w-96 rounded-full bg-cyan-600/10 blur-3xl pointer-events-none" />
 
         <div className="relative z-10">
-          <Link to="/" className="flex items-center gap-3">
+          <Link to="/auth/register" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-400 text-white font-black text-lg shadow-lg shadow-blue-500/20">
               OC
             </div>
@@ -73,8 +73,8 @@ export const AuthLayout: React.FC = () => {
       </div>
 
       {/* Right Authentication Form Container */}
-      <div className="flex w-full lg:w-1/2 flex-col justify-center items-center p-6 sm:p-12 relative">
-        <div className="w-full max-w-md">
+      <div className="flex w-full lg:w-1/2 flex-col justify-center items-center p-4 sm:p-8 lg:p-10 relative overflow-y-auto">
+        <div className="w-full max-w-2xl py-6">
           <Outlet />
         </div>
       </div>

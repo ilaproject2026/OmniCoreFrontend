@@ -3,6 +3,7 @@
 OmniCore is an enterprise-grade, multi-tenant SaaS platform engineered for fleet telemetry, long-haul freight logistics, courier & express operations, passenger shuttle routing, warehouse cross-docking, and financial billing.
 
 ## 📚 Master Documentation & Operations Guides
+* **[User & Operational Workflow Guide](USER_WORKFLOW_GUIDE.md)**: End-to-end user guide covering registration, plan selection, Super User setup, role assignment (RBAC), and plan-based feature entitlements (Fleet, Drivers, Dispatch, etc.).
 * **[Master Operations & Workflow Guide](docs/OMNICORE_MASTER_OPERATIONS_GUIDE.md)**: Exhaustive manual covering user roles, granular permissions, multi-branch scoping, trip dispatching, fleet management, courier/shuttle workflows, and platform administration.
 * **[Vertical Differentiation & Architecture Specification](docs/vertical_differentiation.md)**: Technical architecture specification of the 10 specialized industry transport verticals, AWB lifecycle state machines, and multi-tenant telemetry polymorphism.
 

@@ -56,12 +56,12 @@ export const FleetList: React.FC = () => {
   });
 
   const { data: vehicles = [], isLoading } = useQuery({
-    queryKey: ['fleetVehicles', statusFilter, verticalFilter],
+    queryKey: ['fleetVehicles', tenant.id, statusFilter, verticalFilter],
     queryFn: () => fleetApi.getVehicles({ status: statusFilter, vertical: verticalFilter }),
   });
 
   const { data: allTrips = [] } = useQuery({
-    queryKey: ['fleetAllTrips'],
+    queryKey: ['fleetAllTrips', tenant.id],
     queryFn: () => tripsApi.getTrips(),
   });
 

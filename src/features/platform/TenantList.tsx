@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { platformApi } from '../../api/platform.api';
 import { DataTable, ColumnDef } from '../../components/tables/DataTable';
@@ -20,24 +20,44 @@ import {
   ShieldAlert,
   Layers,
   Sparkles,
+  Lock,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { TenantProvisioningWizard } from './TenantProvisioningWizard';
 import { ChangePlanModal } from './ChangePlanModal';
+import { PlanFeatureRestricted } from '../../components/feedback/PlanFeatureRestricted';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
 
 export const TenantList: React.FC = () => {
   const [searchParams] = useSearchParams();
   const showCreateWizard = searchParams.get('action') === 'create';
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const { tenant: currentTenant, canCreateMultipleTenants } = useTenant();
+
+  const isPlatformRootAdmin = Boolean(user?.isPlatformUser || user?.platformRole === 'super_admin');
 
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [tenantForPlanChange, setTenantForPlanChange] = useState<Tenant | null>(null);
 
-  const { data: tenants = [], isLoading } = useQuery({
+  const { data: rawTenants = [], isLoading } = useQuery({
     queryKey: ['platformTenants', statusFilter],
-    queryFn: () => platformApi.getTenants({ status: statusFilter }),
+    queryFn: () =>
+      platformApi.getTenants({
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+      }),
   });
+
+  // Strict tenant data isolation: Customer Super Admins ONLY see their own organization
+  const tenants = useMemo(() => {
+    if (isPlatformRootAdmin) return rawTenants;
+    const scoped = rawTenants.filter(
+      (t) => t.id === currentTenant.id || t.name.toLowerCase() === currentTenant.name.toLowerCase()
+    );
+    return scoped.length > 0 ? scoped : (currentTenant.id ? [currentTenant] : []);
+  }, [isPlatformRootAdmin, rawTenants, currentTenant]);
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: TenantStatus }) =>
@@ -49,6 +69,15 @@ export const TenantList: React.FC = () => {
   });
 
   if (showCreateWizard) {
+    if (!canCreateMultipleTenants) {
+      return (
+        <PlanFeatureRestricted
+          moduleName="Multiple Tenant Provisioning"
+          requiredTier="enterprise"
+          description="Multi-subsidiary and multiple tenant creation is an exclusive capability of the OmniCore Enterprise plan. Upgrade to Enterprise to spin up and orchestrate multiple isolated tenant workspaces."
+        />
+      );
+    }
     return <TenantProvisioningWizard />;
   }
 
@@ -56,6 +85,8 @@ export const TenantList: React.FC = () => {
     switch (status) {
       case 'active':
         return <Badge variant="success" dot>Active</Badge>;
+      case 'draft':
+        return <Badge variant="warning" dot>Draft</Badge>;
       case 'trial':
         return <Badge variant="info" dot>Trial Period</Badge>;
       case 'provisioning':
@@ -77,7 +108,7 @@ export const TenantList: React.FC = () => {
       render: (_, row) => (
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600/20 text-blue-400 font-bold text-xs shrink-0">
-            {row.name.substring(0, 2).toUpperCase()}
+            {(row.name || 'TN').substring(0, 2).toUpperCase()}
           </div>
           <div>
             <span className="font-semibold text-white block">{row.name}</span>
@@ -107,11 +138,11 @@ export const TenantList: React.FC = () => {
             className="font-semibold text-blue-400 hover:text-cyan-300 uppercase text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
             title="Click to modify subscription tier"
           >
-            <span>{row.subscription.package}</span>
+            <span>{row.subscription?.package || 'standard'}</span>
             <Sparkles className="h-3 w-3 text-amber-300" />
           </button>
           <span className="text-[11px] font-mono text-emerald-400 block mt-0.5">
-            {formatCurrency(row.subscription.mrr)}/mo
+            {formatCurrency(row.subscription?.mrr || 1299)}/mo
           </span>
         </div>
       ),
@@ -119,20 +150,23 @@ export const TenantList: React.FC = () => {
     {
       key: 'verticals',
       header: 'Verticals Enabled',
-      render: (val: string[]) => (
-        <div className="flex flex-wrap gap-1 max-w-[180px]">
-          {val.slice(0, 2).map((v) => (
-            <span key={v} className="bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded text-[9px] capitalize">
-              {v.replace('_', ' ')}
-            </span>
-          ))}
-          {val.length > 2 && (
-            <span className="bg-slate-800 text-slate-400 px-1 py-0.5 rounded text-[9px]">
-              +{val.length - 2}
-            </span>
-          )}
-        </div>
-      ),
+      render: (val: string[]) => {
+        const list = Array.isArray(val) ? val : [];
+        return (
+          <div className="flex flex-wrap gap-1 max-w-[180px]">
+            {list.slice(0, 2).map((v) => (
+              <span key={v} className="bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded text-[9px] capitalize">
+                {String(v).replace('_', ' ')}
+              </span>
+            ))}
+            {list.length > 2 && (
+              <span className="bg-slate-800 text-slate-400 px-1 py-0.5 rounded text-[9px]">
+                +{list.length - 2}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'fleetScale',
@@ -212,18 +246,45 @@ export const TenantList: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Tenant Fleet Operators</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight">
+            {isPlatformRootAdmin ? 'Tenant Fleet Operators' : `${currentTenant.name} Organization Profile`}
+          </h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Manage provisioned multi-tenant subscriptions, vertically tailored instances, and operational lifecycle.
+            {isPlatformRootAdmin
+              ? 'Manage provisioned multi-tenant subscriptions, vertically tailored instances, and operational lifecycle.'
+              : 'Dedicated workspace parameters, active subscription plan, and organization lifecycle governance.'}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <Link to="/platform/tenants?action=create">
-            <Button size="sm" variant="primary" leftIcon={<Plus className="h-4 w-4" />}>
-              Provision Tenant
+          {canCreateMultipleTenants ? (
+            <Link to="/platform/tenants?action=create">
+              <Button size="sm" variant="primary" leftIcon={<Plus className="h-4 w-4" />}>
+                Provision Tenant
+              </Button>
+            </Link>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setTenantForPlanChange(currentTenant)}
+              className="border-purple-500/40 text-purple-300 hover:bg-purple-950/30"
+              leftIcon={<Lock className="h-3.5 w-3.5 text-purple-400" />}
+            >
+              Provision Tenant (Enterprise Only)
             </Button>
-          </Link>
+          )}
+
+          {!isPlatformRootAdmin && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setTenantForPlanChange(currentTenant)}
+              leftIcon={<Sparkles className="h-4 w-4 text-amber-300" />}
+            >
+              Modify Subscription Plan
+            </Button>
+          )}
         </div>
       </div>
 
@@ -242,6 +303,7 @@ export const TenantList: React.FC = () => {
             options={[
               { value: 'all', label: 'All Lifecycles' },
               { value: 'active', label: 'Active' },
+              { value: 'draft', label: 'Draft' },
               { value: 'trial', label: 'Trial' },
               { value: 'suspended', label: 'Suspended' },
             ]}

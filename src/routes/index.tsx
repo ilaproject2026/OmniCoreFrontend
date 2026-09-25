@@ -13,6 +13,7 @@ import { PermissionGuard } from '../components/guards/PermissionGuard';
 import { FeatureGuard } from '../components/guards/FeatureGuard';
 import { RoleAccessRestricted } from '../components/feedback/RoleAccessRestricted';
 import { PlanFeatureRestricted } from '../components/feedback/PlanFeatureRestricted';
+import { VerticalAccessRestricted } from '../components/feedback/VerticalAccessRestricted';
 
 // Auth Pages
 import { Login } from '../features/auth/Login';
@@ -61,20 +62,19 @@ import { PublicPortalLayout } from '../features/public/PublicPortalLayout';
 import { PublicHome } from '../features/public/PublicHome';
 import { PublicTracking } from '../features/public/PublicTracking';
 import { PublicBooking } from '../features/public/PublicBooking';
-import { LandingPage } from '../features/landing/LandingPage';
 
 export const AppRoutes: React.FC = () => {
   return (
     <Routes>
-      {/* Root SaaS Main Landing Page */}
-      <Route path="/" element={<LandingPage />} />
+      {/* Root Route: Directly routed to registration with subscription plans displayed initially */}
+      <Route path="/" element={<Navigate to="/auth/register" replace />} />
 
-      {/* Standalone Full-Page Plan Selection (Step 2 of Onboarding) */}
+      {/* Standalone Full-Page Plan Selection & Upgrade */}
       <Route path="/auth/select-plan" element={<PlanSelectionPage />} />
 
       {/* A. Authentication Routes */}
       <Route path="/auth" element={<AuthLayout />}>
-        <Route index element={<Navigate to="/auth/login" replace />} />
+        <Route index element={<Navigate to="/auth/register" replace />} />
         <Route path="login" element={<Login />} />
         <Route path="register" element={<Register />} />
         <Route path="mfa" element={<MfaVerification />} />
@@ -130,7 +130,9 @@ export const AppRoutes: React.FC = () => {
           element={
             <FeatureGuard
               module="courier"
-              fallback={<PlanFeatureRestricted moduleName="Courier & Express Delivery" requiredTier="standard" />}
+              vertical="courier_express"
+              serviceTitle="Courier & Express Delivery"
+              fallback={<VerticalAccessRestricted verticalKey="courier_express" serviceTitle="Courier & Express Delivery" />}
             >
               <CourierDashboard />
             </FeatureGuard>
@@ -141,7 +143,9 @@ export const AppRoutes: React.FC = () => {
           element={
             <FeatureGuard
               module="shuttle"
-              fallback={<PlanFeatureRestricted moduleName="Corporate Commuter Shuttle" requiredTier="standard" />}
+              vertical="corporate_shuttle"
+              serviceTitle="Corporate Commuter Shuttle"
+              fallback={<VerticalAccessRestricted verticalKey="corporate_shuttle" serviceTitle="Corporate Commuter Shuttle" />}
             >
               <ShuttleDashboard />
             </FeatureGuard>
@@ -154,7 +158,7 @@ export const AppRoutes: React.FC = () => {
           element={
             <FeatureGuard
               module="contracts"
-              fallback={<PlanFeatureRestricted moduleName="Contracts & Tenders" requiredTier="corporate" />}
+              fallback={<PlanFeatureRestricted moduleName="Contracts & Tenders" requiredTier="standard" />}
             >
               <PermissionGuard
                 permission="contracts.view"
@@ -170,7 +174,7 @@ export const AppRoutes: React.FC = () => {
           element={
             <FeatureGuard
               module="maintenance"
-              fallback={<PlanFeatureRestricted moduleName="Workshop & Maintenance" requiredTier="standard" />}
+              fallback={<PlanFeatureRestricted moduleName="Workshop & Maintenance" requiredTier="basic" />}
             >
               <MaintenanceHub />
             </FeatureGuard>
@@ -181,7 +185,7 @@ export const AppRoutes: React.FC = () => {
           element={
             <FeatureGuard
               module="warehouse"
-              fallback={<PlanFeatureRestricted moduleName="Warehouse & Spare Parts" requiredTier="corporate" />}
+              fallback={<PlanFeatureRestricted moduleName="Warehouse & Spare Parts" requiredTier="basic" />}
             >
               <PermissionGuard
                 permission="warehouse.view"
@@ -197,7 +201,7 @@ export const AppRoutes: React.FC = () => {
           element={
             <FeatureGuard
               module="crm"
-              fallback={<PlanFeatureRestricted moduleName="CRM & Sales Pipeline" requiredTier="corporate" />}
+              fallback={<PlanFeatureRestricted moduleName="CRM & Sales Pipeline" requiredTier="enterprise" />}
             >
               <PermissionGuard
                 permission="crm.view"
@@ -214,7 +218,7 @@ export const AppRoutes: React.FC = () => {
           element={
             <FeatureGuard
               module="finance"
-              fallback={<PlanFeatureRestricted moduleName="Finance & Invoicing" requiredTier="standard" />}
+              fallback={<PlanFeatureRestricted moduleName="Finance & Invoicing" requiredTier="basic" />}
             >
               <PermissionGuard
                 permission="finance.view"
@@ -230,7 +234,7 @@ export const AppRoutes: React.FC = () => {
           element={
             <FeatureGuard
               module="hr"
-              fallback={<PlanFeatureRestricted moduleName="HR & Personnel Directory" requiredTier="corporate" />}
+              fallback={<PlanFeatureRestricted moduleName="HR & Personnel Directory" requiredTier="standard" />}
             >
               <PermissionGuard
                 permission="hr.view"
@@ -247,7 +251,7 @@ export const AppRoutes: React.FC = () => {
           element={
             <FeatureGuard
               module="insurance"
-              fallback={<PlanFeatureRestricted moduleName="Insurance & Claims" requiredTier="corporate" />}
+              fallback={<PlanFeatureRestricted moduleName="Insurance & Claims" requiredTier="standard" />}
             >
               <InsuranceHub />
             </FeatureGuard>
@@ -258,7 +262,7 @@ export const AppRoutes: React.FC = () => {
           element={
             <FeatureGuard
               module="marketing"
-              fallback={<PlanFeatureRestricted moduleName="Marketing Campaigns" requiredTier="corporate" />}
+              fallback={<PlanFeatureRestricted moduleName="Marketing Campaigns" requiredTier="standard" />}
             >
               <PermissionGuard
                 permission="marketing.view"
@@ -269,7 +273,22 @@ export const AppRoutes: React.FC = () => {
             </FeatureGuard>
           }
         />
-        <Route path="reports" element={<ReportsHub />} />
+        <Route
+          path="reports"
+          element={
+            <FeatureGuard
+              module="reports"
+              fallback={<PlanFeatureRestricted moduleName="Reports & Analytics" requiredTier="standard" />}
+            >
+              <PermissionGuard
+                permission="reports.view"
+                fallback={<RoleAccessRestricted moduleName="Reports & Analytics" requiredPermission="reports.view" />}
+              >
+                <ReportsHub />
+              </PermissionGuard>
+            </FeatureGuard>
+          }
+        />
         <Route path="notifications" element={<NotificationCenter />} />
         <Route
           path="settings"

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { platformApi } from '../../api/platform.api';
 import { StatCard } from '../../components/common/StatCard';
@@ -14,6 +14,7 @@ import {
   Layers,
   ArrowRight,
   Sparkles,
+  Lock,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -28,8 +29,13 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { formatCurrency } from '../../lib/utils';
+import { useTenant } from '../../contexts/TenantContext';
+import { PackageUpgradeModal } from './PackageUpgradeModal';
 
 export const PlatformDashboard: React.FC = () => {
+  const { canCreateMultipleTenants } = useTenant();
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+
   const { data: stats, isLoading: isStatsLoading } = useQuery({
     queryKey: ['platformStats'],
     queryFn: () => platformApi.getStats(),
@@ -57,13 +63,30 @@ export const PlatformDashboard: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link to="/platform/tenants?action=create">
-            <Button size="sm" variant="primary" leftIcon={<Sparkles className="h-4 w-4" />}>
-              Provision New Tenant
+          {canCreateMultipleTenants ? (
+            <Link to="/platform/tenants?action=create">
+              <Button size="sm" variant="primary" leftIcon={<Sparkles className="h-4 w-4" />}>
+                Provision New Tenant
+              </Button>
+            </Link>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsUpgradeModalOpen(true)}
+              className="border-purple-500/40 text-purple-300 hover:bg-purple-950/30"
+              leftIcon={<Lock className="h-4 w-4 text-purple-400" />}
+            >
+              Provision New Tenant (Enterprise)
             </Button>
-          </Link>
+          )}
         </div>
       </div>
+
+      <PackageUpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+      />
 
       {/* KPI Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

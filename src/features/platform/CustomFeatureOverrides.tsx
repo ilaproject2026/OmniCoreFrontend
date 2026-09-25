@@ -30,7 +30,7 @@ import {
 import { QueryStateWrapper } from '../../components/common/QueryStateWrapper';
 
 export const CustomFeatureOverrides: React.FC = () => {
-  const { id = 'tenant_apex' } = useParams<{ id: string }>();
+  const { id = '' } = useParams<{ id: string }>();
 
   // TanStack Queries
   const { data: tenant, isLoading: isLoadingTenant } = useTenantDetail(id);

@@ -24,6 +24,12 @@ export const ResetPassword: React.FC = () => {
     try {
       await authApi.resetPassword(password, 'token-from-url');
       setSuccess(true);
+    } catch (err: any) {
+      let msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Failed to reset password';
+      if (typeof msg === 'object') {
+        msg = msg?.message || msg?.detail || JSON.stringify(msg);
+      }
+      setError(typeof msg === 'string' ? msg : 'Failed to reset password');
     } finally {
       setIsLoading(false);
     }
@@ -61,7 +67,7 @@ export const ResetPassword: React.FC = () => {
 
       {error && (
         <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400">
-          {error}
+          {typeof error === 'string' ? error : String(error)}
         </div>
       )}
 

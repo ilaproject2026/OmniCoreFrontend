@@ -32,18 +32,25 @@ export const PackageManagement: React.FC = () => {
   });
 
   const comparisonFeatures = [
-    { name: 'Vehicle Capacity Limit', basic: 'Up to 15 Units', standard: 'Up to 60 Units', corporate: 'Up to 250 Units', enterprise: 'Unlimited Units' },
-    { name: 'Operator & Driver User Seats', basic: '5 Seats', standard: '20 Seats', corporate: '75 Seats', enterprise: 'Unlimited' },
-    { name: 'Trip Dispatch & Live Tracking', basic: true, standard: true, corporate: true, enterprise: true },
-    { name: 'Automated Invoicing & Billing', basic: true, standard: true, corporate: true, enterprise: true },
-    { name: 'GPS Telematics & Fuel Logs', basic: false, standard: true, corporate: true, enterprise: true },
-    { name: 'Preventive Fleet Maintenance', basic: false, standard: true, corporate: true, enterprise: true },
-    { name: 'B2B Enterprise Contracts & SLA', basic: false, standard: false, corporate: true, enterprise: true },
-    { name: 'Cold-Chain Reefer IoT Monitoring', basic: false, standard: false, corporate: true, enterprise: true },
-    { name: 'Warehouse & Cross-Dock Hubs', basic: false, standard: false, corporate: true, enterprise: true },
-    { name: 'Multi-Branch & Regional Centers', basic: false, standard: false, corporate: false, enterprise: true },
-    { name: 'Dedicated Account Lead & 99.9% SLA', basic: false, standard: false, corporate: false, enterprise: true },
-    { name: 'Document Cloud Storage Quota', basic: '10 GB', standard: '50 GB', corporate: '250 GB', enterprise: '1 TB Dedicated' },
+    { name: 'Multiple Tenants Creation', basic: false, standard: false, enterprise: true },
+    { name: 'Vehicle Capacity Limit', basic: 'Up to 25 Units', standard: 'Up to 150 Units', enterprise: 'Unlimited Units' },
+    { name: 'Operator & Driver User Seats', basic: '5 Seats', standard: '25 Seats', enterprise: 'Unlimited' },
+    { name: 'Fleet & Driver Registry', basic: true, standard: true, enterprise: true },
+    { name: 'Trip Dispatch & Live Tracking', basic: true, standard: true, enterprise: true },
+    { name: 'Workshop & Maintenance', basic: true, standard: true, enterprise: true },
+    { name: 'Finance & Invoicing Engine', basic: true, standard: true, enterprise: true },
+    { name: 'Warehouse & Inventory Hub', basic: true, standard: true, enterprise: true },
+    { name: 'Role Permissions & Access Matrix', basic: false, standard: true, enterprise: true },
+    { name: 'Platform Audit Log & Security', basic: false, standard: true, enterprise: true },
+    { name: 'Contracts & Tenders (SLA Tracking)', basic: false, standard: true, enterprise: true },
+    { name: 'HR Department & Personnel', basic: false, standard: true, enterprise: true },
+    { name: 'Marketing Campaigns & Promos', basic: false, standard: true, enterprise: true },
+    { name: 'Reports & Business Analytics', basic: false, standard: true, enterprise: true },
+    { name: 'Courier & Express Delivery (AWB)', basic: false, standard: false, enterprise: true },
+    { name: 'Corporate Shuttle / Pooling', basic: false, standard: false, enterprise: true },
+    { name: 'CRM & Sales Pipeline Hub', basic: false, standard: false, enterprise: true },
+    { name: 'Public Booking Portal & Tracking', basic: false, standard: false, enterprise: true },
+    { name: 'Dedicated Lead & 24/7 SLA', basic: false, standard: false, enterprise: true },
   ];
 
   return (
@@ -128,10 +135,10 @@ export const PackageManagement: React.FC = () => {
             <PackageIcon className="h-5 w-5 text-blue-400" />
             Core Subscription Tiers
           </h2>
-          <span className="text-xs text-slate-400">4 commercial plans available</span>
+          <span className="text-xs text-slate-400">3 commercial plans available</span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {Object.values(PACKAGES).map((pkg) => {
             const isEnterprise = pkg.id === 'enterprise';
             const price = billingCycle === 'annually' ? Math.round(pkg.annualPrice / 12) : pkg.monthlyPrice;
@@ -240,7 +247,6 @@ export const PackageManagement: React.FC = () => {
                   <th className="py-3.5 px-4 font-semibold text-slate-300">Platform Capability / Quota</th>
                   <th className="py-3.5 px-4 font-semibold text-blue-400 uppercase">Basic Starter</th>
                   <th className="py-3.5 px-4 font-semibold text-cyan-400 uppercase">Standard Fleet</th>
-                  <th className="py-3.5 px-4 font-semibold text-amber-400 uppercase">Corporate</th>
                   <th className="py-3.5 px-4 font-semibold text-purple-400 uppercase">OmniCore Enterprise</th>
                 </tr>
               </thead>
@@ -248,7 +254,7 @@ export const PackageManagement: React.FC = () => {
                 {comparisonFeatures.map((row, i) => (
                   <tr key={i} className="hover:bg-slate-900/40 transition-colors">
                     <td className="py-3 px-4 font-medium text-slate-200">{row.name}</td>
-                    {(['basic', 'standard', 'corporate', 'enterprise'] as const).map((tierKey) => {
+                    {(['basic', 'standard', 'enterprise'] as const).map((tierKey) => {
                       const val = row[tierKey];
                       return (
                         <td key={tierKey} className="py-3 px-4">

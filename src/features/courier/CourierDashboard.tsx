@@ -1048,7 +1048,7 @@ export const CourierDashboard: React.FC = () => {
               required
               value={newShipmentForm.senderName}
               onChange={(e) => setNewShipmentForm({ ...newShipmentForm, senderName: e.target.value })}
-              placeholder="e.g. Apex Pharma Central"
+              placeholder="e.g. Central Medical Logistics Hub"
             />
             <Input
               label="Sender Phone"

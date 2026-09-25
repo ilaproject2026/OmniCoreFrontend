@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, tenantStorage } from './client';
 import { Driver } from '../types';
 
 // Django Backend Driver Status Translators
@@ -101,10 +101,24 @@ export const driversApi = {
       queryParams.status = mapDriverStatusToBackend(params.status);
     }
 
+    const activeTenantId = tenantStorage.getActiveTenantId();
+    if (activeTenantId && activeTenantId.length > 20) {
+      queryParams.tenant = activeTenantId;
+      queryParams.tenant_id = activeTenantId;
+    }
+
     const response = await apiClient.get<any>('/drivers/', { params: queryParams });
-    const rawList = Array.isArray(response.data)
+    let rawList: any[] = Array.isArray(response.data)
       ? response.data
       : (response.data?.results || response.data?.data || []);
+
+    if (activeTenantId) {
+      rawList = rawList.filter((item: any) => {
+        const itemTenant = item.tenant_id || item.tenant_uuid || (typeof item.tenant === 'string' ? item.tenant : item.tenant?.id);
+        return !itemTenant || itemTenant === activeTenantId;
+      });
+    }
+
     return rawList.map(normalizeDriverResponse);
   },
 

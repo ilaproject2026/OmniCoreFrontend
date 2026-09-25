@@ -26,8 +26,12 @@ export const PlanFeatureRestricted: React.FC<PlanFeatureRestrictedProps> = ({
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [isUpgradingDirectly, setIsUpgradingDirectly] = useState(false);
 
-  const isSuperAdmin = Boolean(user?.isPlatformUser || user?.platformRole === 'super_admin');
-  const isTenantAdmin = user?.tenantRole === 'tenant_admin';
+  const isSuperAdmin = Boolean(
+    user?.isPlatformUser ||
+    user?.platformRole === 'super_admin' ||
+    user?.platformRole === 'omnicore_admin'
+  );
+  const isTenantAdmin = user?.tenantRole === 'tenant_admin' || user?.tenantRole === 'customer_admin';
 
   const currentPkg = PACKAGES[packageTier] || PACKAGES.standard;
   const targetPkg = PACKAGES[requiredTier] || PACKAGES.corporate;

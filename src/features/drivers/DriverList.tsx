@@ -24,9 +24,11 @@ import {
   FileCheck,
 } from 'lucide-react';
 import { formatDate } from '../../lib/utils';
+import { useTenant } from '../../contexts/TenantContext';
 
 export const DriverList: React.FC = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -48,7 +50,7 @@ export const DriverList: React.FC = () => {
   });
 
   const { data: drivers = [], isLoading } = useQuery({
-    queryKey: ['drivers', statusFilter],
+    queryKey: ['drivers', tenant.id, statusFilter],
     queryFn: () => driversApi.getDrivers({ status: statusFilter }),
   });
 
@@ -332,7 +334,7 @@ export const DriverList: React.FC = () => {
               label="Email Address"
               type="email"
               required
-              placeholder="e.g. robert.c@apexlogistics.com"
+              placeholder="e.g. driver@organization.com"
               value={newDriver.email}
               onChange={(e) => setNewDriver({ ...newDriver, email: e.target.value })}
             />

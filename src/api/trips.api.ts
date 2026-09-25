@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, tenantStorage } from './client';
 import { Booking, Trip, TripExpense, TripStatus } from '../types';
 
 export const isUuid = (val: unknown): boolean =>
@@ -40,20 +40,22 @@ export async function resolveCustomerUuid(
       }
     }
 
-    // If no customer exists in the backend DB, create one on the fly
-    const createPayload = {
-      company_name: candidateName || 'Enterprise Partner Client',
-      name: candidateName || 'Enterprise Partner Client',
-      contact_person: 'Fleet Logistics Manager',
-      email: contactInfo?.email || 'logistics@omnicore.io',
-      phone: contactInfo?.phone || '+1 (555) 012-3456',
-      address: contactInfo?.address || 'Main Logistics Center',
-      credit_limit: 100000,
-    };
-    const newCustRes = await apiClient.post<any>('/crm/customers/', createPayload);
-    const newId = newCustRes.data?.id;
-    if (isUuid(newId)) {
-      return newId;
+    // If customer name is provided, register them to CRM
+    if (candidateName) {
+      const createPayload = {
+        company_name: candidateName,
+        name: candidateName,
+        contact_person: '',
+        email: contactInfo?.email || '',
+        phone: contactInfo?.phone || '',
+        address: contactInfo?.address || '',
+        credit_limit: 0,
+      };
+      const newCustRes = await apiClient.post<any>('/crm/customers/', createPayload);
+      const newId = newCustRes.data?.id;
+      if (isUuid(newId)) {
+        return newId;
+      }
     }
   } catch (err) {
     console.warn('Could not auto-resolve backend customer UUID:', err);
@@ -69,7 +71,7 @@ export const normalizeBookingResponse = (data: any): Booking => {
     id: data.id || `bk_${Math.random().toString(36).substring(2, 7)}`,
     bookingCode: data.booking_number || data.bookingCode || `BK-${data.id || '2026'}`,
     customerId: typeof data.customer === 'string' ? data.customer : data.customer?.id,
-    customerName: data.customer_name || data.customerName || data.customer?.company_name || 'Standard Client',
+    customerName: data.customer_name || data.customerName || data.customer?.company_name || 'Client',
     pickupLocation: data.pickup_location || data.pickupLocation || '',
     dropoffLocation: data.dropoff_location || data.dropoffLocation || '',
     cargoDescription: data.cargo_type || data.cargoDescription || '',
@@ -83,9 +85,9 @@ export const normalizeBookingResponse = (data: any): Booking => {
 export const normalizeTripResponse = (data: any): Trip => {
   if (!data) return data;
   const custId = typeof data.customer === 'string' ? data.customer : data.customer?.id;
-  const custName = data.customer_name || data.customerName || data.customer?.company_name || 'Enterprise Shipper';
+  const custName = data.customer_name || data.customerName || data.customer?.company_name || 'Commercial Shipper';
   const vehId = typeof data.vehicle === 'string' ? data.vehicle : data.vehicle?.id;
-  const vehReg = data.vehicle_reg || data.vehicleReg || data.vehicle?.registration_number || 'IL-DISP-01';
+  const vehReg = data.vehicle_reg || data.vehicleReg || data.vehicle?.registration_number || '';
   const drvId = typeof data.driver === 'string' ? data.driver : data.driver?.id;
   const drvName = data.driver_name || data.driverName || (data.driver ? `${data.driver.first_name || ''} ${data.driver.last_name || ''}`.trim() : 'Assigned Driver');
 
@@ -93,7 +95,7 @@ export const normalizeTripResponse = (data: any): Trip => {
     ...data,
     id: data.id || `trip_${Math.random().toString(36).substring(2, 7)}`,
     tripCode: data.trip_number || data.tripCode || `TRP-${data.id || '2026'}`,
-    tenantId: data.tenant_id || data.tenantId || 'tenant_apex',
+    tenantId: data.tenant_id || data.tenantId || '',
     bookingId: typeof data.booking === 'string' ? data.booking : data.booking?.id,
     customerId: custId,
     customerName: custName,
@@ -101,13 +103,13 @@ export const normalizeTripResponse = (data: any): Trip => {
     vehicleReg: vehReg,
     driverId: drvId,
     driverName: drvName,
-    driverPhone: data.driver_phone || data.driverPhone || '+1 (312) 555-0834',
+    driverPhone: data.driver_phone || data.driverPhone || '',
     origin: data.origin || '',
     destination: data.destination || '',
     distanceKm: Number(data.distance_km ?? data.distanceKm ?? 0),
     status: (data.status || 'dispatched').toLowerCase() as TripStatus,
     startTime: data.actual_start || data.scheduled_start || data.startTime || new Date().toISOString(),
-    estimatedArrival: data.scheduled_end || data.estimatedArrival || 'Tomorrow 18:00',
+    estimatedArrival: data.scheduled_end || data.estimatedArrival || '',
     commercialRate: Number(data.freight_charge ?? data.commercialRate ?? 0),
     expensesTotal: Array.isArray(data.expenses)
       ? data.expenses.reduce((acc: number, e: any) => acc + Number(e.amount || 0), 0)
@@ -139,6 +141,12 @@ export const tripsApi = {
       queryParams.status = params.status.toUpperCase();
     }
 
+    const activeTenantId = tenantStorage.getActiveTenantId();
+    if (activeTenantId && activeTenantId.length > 20) {
+      queryParams.tenant = activeTenantId;
+      queryParams.tenant_id = activeTenantId;
+    }
+
     let response;
     try {
       response = await apiClient.get<any>('/bookings/', { params: queryParams });
@@ -149,7 +157,13 @@ export const tripsApi = {
         throw err;
       }
     }
-    const raw = Array.isArray(response.data) ? response.data : (response.data?.results || response.data?.data || []);
+    let raw: any[] = Array.isArray(response.data) ? response.data : (response.data?.results || response.data?.data || []);
+    if (activeTenantId) {
+      raw = raw.filter((item: any) => {
+        const itemTenant = item.tenant_id || item.tenant_uuid || (typeof item.tenant === 'string' ? item.tenant : item.tenant?.id);
+        return !itemTenant || itemTenant === activeTenantId;
+      });
+    }
     return raw.map(normalizeBookingResponse);
   },
 
@@ -205,16 +219,31 @@ export const tripsApi = {
   },
 
   getTrips: async (params?: { status?: string; vehicleId?: string; search?: string }): Promise<Trip[]> => {
+    const activeTenantId = tenantStorage.getActiveTenantId();
+    const queryParams: Record<string, any> = {
+      status: params?.status && params.status !== 'all' ? params.status.toUpperCase() : undefined,
+      vehicle: isUuid(params?.vehicleId) ? params?.vehicleId : undefined,
+      search: params?.search || undefined,
+    };
+    if (activeTenantId && activeTenantId.length > 20) {
+      queryParams.tenant = activeTenantId;
+      queryParams.tenant_id = activeTenantId;
+    }
+
     const response = await apiClient.get<any>('/trips/', {
-      params: {
-        status: params?.status && params.status !== 'all' ? params.status.toUpperCase() : undefined,
-        vehicle: isUuid(params?.vehicleId) ? params?.vehicleId : undefined,
-        search: params?.search || undefined,
-      },
+      params: queryParams,
     });
-    const rawList = Array.isArray(response.data)
+    let rawList: any[] = Array.isArray(response.data)
       ? response.data
       : (response.data?.results || response.data?.data || []);
+
+    if (activeTenantId) {
+      rawList = rawList.filter((item: any) => {
+        const itemTenant = item.tenant_id || item.tenant_uuid || (typeof item.tenant === 'string' ? item.tenant : item.tenant?.id);
+        return !itemTenant || itemTenant === activeTenantId;
+      });
+    }
+
     return rawList.map(normalizeTripResponse);
   },
 

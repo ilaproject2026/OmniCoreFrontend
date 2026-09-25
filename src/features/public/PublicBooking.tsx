@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Tag,
   Snowflake,
+  AlertCircle,
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
@@ -23,7 +24,7 @@ import { Badge } from '../../components/common/Badge';
 import { useSubmitPublicBookingMutation } from '../../hooks/queries';
 
 export const PublicBooking: React.FC = () => {
-  const { tenantSlug = 'apex-global' } = useParams<{ tenantSlug: string }>();
+  const { tenantSlug = 'workspace' } = useParams<{ tenantSlug: string }>();
   const [selectedService, setSelectedService] = useState('courier_express');
   const outletCtx = useOutletContext<{ cms?: TenantPublicCms | null }>();
   const cms = outletCtx?.cms || null;
@@ -51,8 +52,37 @@ export const PublicBooking: React.FC = () => {
     notes: '',
   });
 
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
+
+    if (!form.senderName.trim()) {
+      setSubmitError('Please enter the Sender / Contact Name.');
+      return;
+    }
+    if (!form.senderPhone.trim()) {
+      setSubmitError('Please enter the Sender Contact Phone Number.');
+      return;
+    }
+    if (!form.senderAddress.trim()) {
+      setSubmitError('Please enter the complete Pickup Address.');
+      return;
+    }
+    if (!form.receiverName.trim()) {
+      setSubmitError('Please enter the Recipient Name.');
+      return;
+    }
+    if (!form.receiverPhone.trim()) {
+      setSubmitError('Please enter the Recipient Phone Number.');
+      return;
+    }
+    if (!form.receiverAddress.trim()) {
+      setSubmitError('Please enter the Destination / Delivery Address.');
+      return;
+    }
+
     try {
       const res = await submitBookingMutation.mutateAsync({
         tenantSlug,
@@ -72,8 +102,10 @@ export const PublicBooking: React.FC = () => {
         bookingReference: res.bookingReference,
         message: res.message,
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Booking submission failed:', err);
+      const msg = err?.response?.data?.message || err?.message || 'Booking submission failed. Please verify the details and try again.';
+      setSubmitError(typeof msg === 'string' ? msg : JSON.stringify(msg));
     }
   };
 
@@ -87,7 +119,7 @@ export const PublicBooking: React.FC = () => {
           Book Transport & Logistics Services
         </h1>
         <p className="text-xs text-slate-400">
-          Instant booking directly with <strong className="text-slate-200">{cms?.companyName || 'Apex Global Logistics'}</strong>.
+          Instant booking directly with <strong className="text-slate-200">{cms?.companyName || 'our logistics team'}</strong>.
         </p>
       </div>
 
@@ -144,6 +176,13 @@ export const PublicBooking: React.FC = () => {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="p-6 sm:p-8 rounded-2xl border border-slate-800 bg-slate-900/60 shadow-xl space-y-6">
+          {submitError && (
+            <div className="p-3.5 rounded-xl border border-red-500/30 bg-red-500/10 text-xs text-red-400 flex items-center gap-2.5">
+              <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
+              <span>{submitError}</span>
+            </div>
+          )}
+
           {/* Vertical Selector */}
           <div>
             <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block mb-2">
@@ -256,7 +295,7 @@ export const PublicBooking: React.FC = () => {
               />
               <Input
                 label="Promotional Coupon Code"
-                placeholder="e.g. APEXEXPRESS20"
+                placeholder="e.g. PROMO20"
                 value={form.couponCode}
                 onChange={(e) => setForm({ ...form, couponCode: e.target.value })}
               />

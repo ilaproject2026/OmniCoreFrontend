@@ -45,10 +45,23 @@ export const tokenStorage = {
 
 // Tenant Context Storage
 export const tenantStorage = {
-  getActiveTenantId: (): string | null =>
-    localStorage.getItem('active_tenant_id') ||
-    localStorage.getItem('omni_active_tenant_id') ||
-    localStorage.getItem('omni_active_tenant'),
+  getActiveTenantId: (): string | null => {
+    const directId =
+      localStorage.getItem('active_tenant_id') ||
+      localStorage.getItem('omni_active_tenant_id');
+    if (directId) return directId;
+
+    const rawTenant = localStorage.getItem('omni_active_tenant');
+    if (rawTenant) {
+      try {
+        const parsed = JSON.parse(rawTenant);
+        return parsed?.id || null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  },
   setActiveTenantId: (id: string): void => {
     localStorage.setItem('active_tenant_id', id);
     localStorage.setItem('omni_active_tenant_id', id);
@@ -58,6 +71,19 @@ export const tenantStorage = {
     localStorage.removeItem('omni_active_tenant_id');
     localStorage.removeItem('omni_active_tenant');
   },
+};
+
+// Complete session cleanup helper across tokens, tenant references, and cached identities
+export const clearAllSessionData = (): void => {
+  tokenStorage.clearTokens();
+  tenantStorage.clearActiveTenantId();
+  localStorage.removeItem('omni_user_state');
+  localStorage.removeItem('omni_registered_company');
+  localStorage.removeItem('omni_org_owner_email');
+  localStorage.removeItem('omni_custom_role_permissions');
+  localStorage.removeItem('omni_active_role');
+  localStorage.removeItem('omnicore_active_branch');
+  window.dispatchEvent(new CustomEvent('omni_session_cleared'));
 };
 
 // Create main Axios instance with cookie credentials enabled
@@ -187,7 +213,7 @@ apiClient.interceptors.response.use(
         }
       } catch (refreshErr) {
         processQueue(refreshErr, null);
-        tokenStorage.clearTokens();
+        clearAllSessionData();
         window.dispatchEvent(new CustomEvent('omni_auth_expired'));
         return Promise.reject(normalizeApiError(refreshErr as AxiosError));
       } finally {
@@ -210,17 +236,27 @@ export function normalizeApiError(error: AxiosError<any> | Error): ApiErrorRespo
         return { message: data, code: 'SERVER_ERROR', status };
       }
 
-      const message =
+      // Safely extract error string even if data.error or other fields are objects
+      let rawMsg: any =
         data.detail ||
         data.message ||
-        data.error ||
-        (data.non_field_errors && data.non_field_errors[0]) ||
-        `Request failed with status ${status}`;
+        (Array.isArray(data.non_field_errors) && data.non_field_errors[0]) ||
+        (typeof data.non_field_errors === 'string' && data.non_field_errors) ||
+        data.error;
+
+      if (rawMsg && typeof rawMsg === 'object') {
+        rawMsg = rawMsg.message || rawMsg.detail || rawMsg.error || JSON.stringify(rawMsg);
+      }
+
+      const message: string =
+        typeof rawMsg === 'string' && rawMsg.trim()
+          ? rawMsg.trim()
+          : `Request failed with status ${status || 'unknown'}`;
 
       return {
         message,
-        code: data.code || `HTTP_${status}`,
-        detail: data.detail,
+        code: (typeof data.code === 'string' ? data.code : (data.error?.code || `HTTP_${status}`)),
+        detail: typeof data.detail === 'string' ? data.detail : undefined,
         errors: typeof data === 'object' ? data : undefined,
         status,
       };

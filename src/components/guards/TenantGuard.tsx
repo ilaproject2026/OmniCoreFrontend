@@ -45,12 +45,13 @@ export const TenantGuard: React.FC<TenantGuardProps> = ({ children }) => {
     const activeTenants = tenants.filter((t) => t.status === 'active');
     const defaultActive = activeTenants[0];
 
-    const handleReactivate = () => {
+    const handleReactivate = async () => {
       setIsReactivating(true);
-      setTimeout(() => {
-        reactivateTenant();
+      try {
+        await reactivateTenant();
+      } finally {
         setIsReactivating(false);
-      }, 300);
+      }
     };
 
     return (

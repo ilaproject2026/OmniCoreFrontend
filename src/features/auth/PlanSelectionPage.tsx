@@ -38,7 +38,7 @@ export const PlanSelectionPage: React.FC = () => {
 
   const companyName = state.companyName || searchParams.get('company') || tenant?.name || 'Your Fleet Organization';
   const email = state.registeredEmail || searchParams.get('email') || user?.email || '';
-  const initialTier = state.initialTier || (searchParams.get('tier') as PackageTier) || 'corporate';
+  const initialTier = state.initialTier || (searchParams.get('tier') as PackageTier) || 'standard';
 
   const [selectedTier, setSelectedTier] = useState<PackageTier>(initialTier);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annually'>('monthly');
@@ -54,10 +54,11 @@ export const PlanSelectionPage: React.FC = () => {
       // 1. Update package tier in context and localStorage
       setPackageTier(tier);
 
-      const pkgDef = PACKAGES[tier] || PACKAGES.corporate;
+      const pkgDef = PACKAGES[tier] || PACKAGES.standard;
       const updatedTenant = {
         ...tenant,
         name: companyName,
+        slug: companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         subscription: {
           ...tenant.subscription,
           package: tier,
@@ -66,6 +67,8 @@ export const PlanSelectionPage: React.FC = () => {
         },
       };
       localStorage.setItem('omni_active_tenant', JSON.stringify(updatedTenant));
+      if (email) localStorage.setItem('omni_org_owner_email', email);
+      if (companyName) localStorage.setItem('omni_registered_company', companyName);
 
       // 2. Redirect to login with confirmation
       setTimeout(() => {
@@ -86,7 +89,7 @@ export const PlanSelectionPage: React.FC = () => {
       {/* 1. TOP MINIMAL HEADER */}
       <header className="border-b border-slate-800/80 bg-[#070b14]/90 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5 group">
+          <Link to="/auth/register" className="flex items-center gap-2.5 group">
             <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-blue-600 via-cyan-500 to-indigo-500 p-0.5 shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
               <div className="h-full w-full bg-[#070b14] rounded-[10px] flex items-center justify-center">
                 <Cpu className="h-5 w-5 text-cyan-400" />
@@ -187,12 +190,13 @@ export const PlanSelectionPage: React.FC = () => {
 
         {/* 3. 4-TIER FULL-WIDTH SUBSCRIPTION PLANS MATRIX */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 relative z-10">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {planKeys.map((tierKey) => {
               const pkg = PACKAGES[tierKey];
               const price = billingCycle === 'monthly' ? pkg.monthlyPrice : Math.round(pkg.annualPrice / 12);
               const isSelected = selectedTier === tierKey;
-              const isPopular = tierKey === 'corporate';
+              const isPopular = tierKey === 'standard';
+              const isCorporate = tierKey === 'corporate';
               const isEnterprise = tierKey === 'enterprise';
 
               return (
@@ -204,6 +208,10 @@ export const PlanSelectionPage: React.FC = () => {
                     isSelected
                       ? 'border-blue-500 bg-blue-950/30 ring-2 ring-blue-500/50 shadow-2xl shadow-blue-500/20 scale-[1.02]'
                       : isPopular
+                      ? 'border-blue-500/60 bg-blue-950/20 hover:border-blue-500'
+                      : isCorporate
+                      ? 'border-emerald-500/60 bg-emerald-950/20 hover:border-emerald-500'
+                      : isEnterprise
                       ? 'border-purple-500/60 bg-purple-950/20 hover:border-purple-500'
                       : 'border-slate-800 bg-slate-900/70 hover:border-slate-700 hover:bg-slate-900'
                   )}
@@ -211,8 +219,17 @@ export const PlanSelectionPage: React.FC = () => {
                   {/* Popular Ribbon */}
                   {isPopular && (
                     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20">
-                      <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-[10px] font-extrabold uppercase tracking-wider text-white px-3 py-1 rounded-full shadow-lg border border-white/20">
-                        ⭐ Most Popular Tier
+                      <span className="bg-gradient-to-r from-blue-600 to-cyan-600 text-[10px] font-extrabold uppercase tracking-wider text-white px-3 py-1 rounded-full shadow-lg border border-white/20">
+                        ⭐ Recommended Growth Tier
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Corporate Ribbon */}
+                  {isCorporate && (
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20">
+                      <span className="bg-gradient-to-r from-emerald-600 to-teal-600 text-[10px] font-extrabold uppercase tracking-wider text-white px-3 py-1 rounded-full shadow-lg border border-white/20">
+                        ⚡ Advanced B2B Logistics
                       </span>
                     </div>
                   )}
@@ -222,7 +239,7 @@ export const PlanSelectionPage: React.FC = () => {
                     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20">
                       <span className="bg-gradient-to-r from-purple-600 to-indigo-600 text-[10px] font-extrabold uppercase tracking-wider text-amber-300 px-3 py-1 rounded-full shadow-lg border border-amber-300/30 flex items-center gap-1">
                         <Crown className="h-3 w-3 text-amber-300" />
-                        <span>Maximum Power</span>
+                        <span>Top Tier • Multi-Tenant Creation</span>
                       </span>
                     </div>
                   )}

@@ -47,14 +47,14 @@ export const crmApi = {
 
   createCustomer: async (payload: Partial<Customer>): Promise<Customer> => {
     const backendPayload = {
-      company_name: (payload as any).companyName || payload.name || 'Enterprise Client',
-      name: payload.name || (payload as any).companyName || 'Enterprise Client',
-      contact_person: (payload as any).contactPerson || (payload as any).contact_person || 'Logistics Coordinator',
-      email: payload.email || 'client@enterprise.com',
-      phone: payload.phone || '+1 (555) 012-3344',
-      address: (payload as any).billingAddress || payload.address || 'Commercial Logistics Depot',
-      tax_id: (payload as any).taxId || payload.taxNumber || `TAX-${Math.floor(100000 + Math.random() * 900000)}`,
-      credit_limit: payload.creditLimit || 50000,
+      company_name: (payload as any).companyName || payload.name || '',
+      name: payload.name || (payload as any).companyName || '',
+      contact_person: (payload as any).contactPerson || (payload as any).contact_person || '',
+      email: payload.email || '',
+      phone: payload.phone || '',
+      address: (payload as any).billingAddress || payload.address || '',
+      tax_id: (payload as any).taxId || payload.taxNumber || '',
+      credit_limit: payload.creditLimit || 0,
     };
 
     const response = await apiClient.post<any>('/crm/customers/', backendPayload);

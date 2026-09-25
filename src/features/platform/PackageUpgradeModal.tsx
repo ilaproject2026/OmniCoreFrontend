@@ -45,7 +45,7 @@ export const PackageUpgradeModal: React.FC<PackageUpgradeModalProps> = ({
   };
 
   const currentDef = PACKAGES[selectedTier];
-  const calculatedMrr = currentDef ? currentDef.monthlyPrice : 399;
+  const calculatedMrr = currentDef ? currentDef.monthlyPrice : 499;
 
   return (
     <Modal
@@ -61,7 +61,7 @@ export const PackageUpgradeModal: React.FC<PackageUpgradeModalProps> = ({
         </p>
 
         {/* Tier Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           {tiers.map((t) => {
             const def = PACKAGES[t];
             const isCurrent = t === packageTier;

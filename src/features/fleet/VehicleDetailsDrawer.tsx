@@ -133,7 +133,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
     status: 'completed' as WorkOrderStatus,
     issueDescription: '',
     actionTaken: '',
-    workshopName: 'Apex Central Workshop',
+    workshopName: '',
     technicianName: '',
     odometerAtService: 0,
     totalCost: 250,
@@ -493,7 +493,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
         vehicleReg: currentVehicle.registrationNumber,
         type: maintForm.type,
         status: maintForm.status,
-        workshopName: maintForm.workshopName || 'Apex Central Workshop',
+        workshopName: maintForm.workshopName || 'Authorized Fleet Workshop',
         technicianName: maintForm.technicianName || 'Certified Technician',
         issueDescription: maintForm.issueDescription || 'Scheduled preventative service inspection',
         actionTaken: maintForm.actionTaken || 'Full diagnostic inspection and service completed',
@@ -527,7 +527,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
         status: 'completed',
         issueDescription: '',
         actionTaken: '',
-        workshopName: 'Apex Central Workshop',
+        workshopName: '',
         technicianName: '',
         odometerAtService: updatedVehicle.odometerKm || 0,
         totalCost: 250,
@@ -850,7 +850,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
                       Fleet Operator Roster
                     </span>
                     <span className="text-slate-100 font-medium mt-0.5 block text-sm">
-                      Apex Linehaul Operations
+                      {(vehicle as any)?.assignedBranch || (vehicle as any)?.branch || 'Active Commercial Operations'}
                     </span>
                   </div>
                 </div>
@@ -2072,7 +2072,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
               </div>
               <div className="rounded-lg border border-slate-800 bg-[#141c2e] p-3">
                 <span className="text-slate-400 block text-[10px]">2026-09-12 09:30 UTC</span>
-                <p className="font-medium text-slate-200 mt-0.5">Commercial vehicle registered to active Apex Linehaul roster.</p>
+                <p className="font-medium text-slate-200 mt-0.5">Commercial vehicle registered to active fleet roster.</p>
               </div>
             </div>
           )}
@@ -2475,14 +2475,14 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
 
             <Input
               label="Workshop / Service Facility Name"
-              placeholder="e.g. Apex Central Fleet Workshop"
+              placeholder="e.g. Commercial Fleet Workshop Bay 1"
               value={maintForm.workshopName}
               onChange={(e) => setMaintForm({ ...maintForm, workshopName: e.target.value })}
             />
 
             <Input
               label="Lead Mechanic / Technician Name"
-              placeholder="e.g. Travis Becker (Master Tech)"
+              placeholder="e.g. Certified Heavy Vehicle Technician"
               value={maintForm.technicianName}
               onChange={(e) => setMaintForm({ ...maintForm, technicianName: e.target.value })}
             />

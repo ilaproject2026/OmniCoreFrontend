@@ -3,9 +3,11 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import { Bell, CheckCheck, AlertCircle, Clock, ShieldAlert, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '../../lib/utils';
+import { useClickOutside } from '../../hooks/useClickOutside';
 
 export const NotificationDropdown: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useClickOutside<HTMLDivElement>(() => setIsOpen(false), isOpen);
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
 
   const getSeverityIcon = (sev: string) => {
@@ -20,7 +22,7 @@ export const NotificationDropdown: React.FC = () => {
   };
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer"
@@ -35,10 +37,8 @@ export const NotificationDropdown: React.FC = () => {
       </button>
 
       {isOpen && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl z-40 overflow-hidden flex flex-col text-slate-200">
-            {/* Header */}
+        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl z-40 overflow-hidden flex flex-col text-slate-200">
+          {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3 bg-[#0b0f17]/80">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-white">Notifications</span>
@@ -101,7 +101,6 @@ export const NotificationDropdown: React.FC = () => {
               </Link>
             </div>
           </div>
-        </>
       )}
     </div>
   );

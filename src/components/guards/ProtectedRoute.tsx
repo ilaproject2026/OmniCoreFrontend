@@ -29,7 +29,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/auth/login" state={{ from: location }} replace />;
   }
 
-  if (requirePlatformAdmin && !user.isPlatformUser) {
+  const isPlatformAdmin = Boolean(user.isPlatformUser || user.platformRole === 'omnicore_admin' || user.platformRole === 'super_admin');
+  if (requirePlatformAdmin && !isPlatformAdmin) {
     return <Navigate to="/auth/unauthorized" replace />;
   }
 

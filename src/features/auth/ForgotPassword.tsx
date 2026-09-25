@@ -3,19 +3,24 @@ import { Link } from 'react-router-dom';
 import { authApi } from '../../api/auth.api';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
-import { Mail, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Mail, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export const ForgotPassword: React.FC = () => {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setIsLoading(true);
     try {
       await authApi.forgotPassword(email);
       setSubmitted(true);
+    } catch (err: any) {
+      let msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Unable to process password reset request.';
+      setError(typeof msg === 'string' ? msg : JSON.stringify(msg));
     } finally {
       setIsLoading(false);
     }
@@ -52,6 +57,12 @@ export const ForgotPassword: React.FC = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div className="p-3 rounded-lg border border-red-500/30 bg-red-500/10 text-xs text-red-400 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
+            <span>{error}</span>
+          </div>
+        )}
         <Input
           label="Work Email"
           type="email"

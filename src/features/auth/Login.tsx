@@ -3,22 +3,41 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
-import { Lock, Mail, ArrowRight, ShieldCheck, Sparkles, CheckCircle2, UserPlus } from 'lucide-react';
+import { Lock, Mail, ArrowRight, ShieldCheck, CheckCircle2 } from 'lucide-react';
+
+const extractErrorMessage = (err: any): string => {
+  if (!err) return 'Authentication failed. Please check your credentials.';
+  if (typeof err === 'string') return err;
+  if (typeof err.message === 'string') return err.message;
+  if (err.message && typeof err.message === 'object') {
+    return err.message.message || err.message.detail || JSON.stringify(err.message);
+  }
+  if (typeof err.detail === 'string') return err.detail;
+  if (err.error) {
+    if (typeof err.error === 'string') return err.error;
+    if (typeof err.error === 'object') return err.error.message || err.error.detail || JSON.stringify(err.error);
+  }
+  return 'Failed to authenticate. Please check your credentials.';
+};
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, switchRole } = useAuth();
 
   const state = location.state as { registeredEmail?: string; successMessage?: string } | null;
 
-  const [email, setEmail] = useState(state?.registeredEmail || 'admin@gmail.com');
-  const [password, setPassword] = useState('admin');
+  const [email, setEmail] = useState(
+    typeof state?.registeredEmail === 'string' ? state.registeredEmail : ''
+  );
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [successNotice, setSuccessNotice] = useState<string | null>(state?.successMessage || null);
+  const [successNotice, setSuccessNotice] = useState<string | null>(
+    typeof state?.successMessage === 'string' ? state.successMessage : null
+  );
 
   useEffect(() => {
-    if (state?.registeredEmail) {
+    if (typeof state?.registeredEmail === 'string' && state.registeredEmail) {
       setEmail(state.registeredEmail);
       setPassword('');
     }
@@ -29,33 +48,38 @@ export const Login: React.FC = () => {
     setError(null);
     try {
       const res = await login({ email, password });
-      if (res.user?.isPlatformUser) {
+      if (res?.mfaRequired) {
+        navigate('/auth/mfa');
+        return;
+      }
+      if (res.user?.isPlatformUser || res.user?.platformRole === 'super_admin' || res.user?.platformRole === 'omnicore_admin') {
         navigate('/platform/dashboard');
       } else {
         navigate('/app/dashboard');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to authenticate');
-    }
-  };
-
-  const handleQuickDemo = async (demoEmail: string, isSuperAdmin: boolean = false) => {
-    setEmail(demoEmail);
-    setPassword('admin');
-    try {
-      const res = await login({ email: demoEmail, password: 'admin' });
-      if (isSuperAdmin || res.user?.isPlatformUser) {
-        navigate('/platform/dashboard');
-      } else {
-        navigate('/app/dashboard');
-      }
-    } catch (err: any) {
-      setError(err.message);
+      setError(extractErrorMessage(err));
     }
   };
 
   return (
     <div className="w-full">
+      {/* 1. TOP AUTH MODE SWITCHER */}
+      <div className="flex items-center justify-between p-1 mb-6 rounded-xl bg-slate-900/80 border border-slate-800">
+        <Link
+          to="/auth/register"
+          className="flex-1 py-2 px-3 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/50 transition-all flex items-center justify-center gap-1.5"
+        >
+          <span>Choose Plan & Register</span>
+        </Link>
+        <button
+          type="button"
+          className="flex-1 py-2 px-3 rounded-lg text-xs font-semibold text-white bg-blue-600 shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+        >
+          <span>Sign In to Existing Account</span>
+        </button>
+      </div>
+
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-white tracking-tight">Welcome to OmniCore</h2>
         <p className="mt-1 text-xs text-slate-400">
@@ -72,7 +96,7 @@ export const Login: React.FC = () => {
 
       {error && (
         <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400">
-          {error}
+          {typeof error === 'string' ? error : extractErrorMessage(error)}
         </div>
       )}
 
@@ -120,57 +144,6 @@ export const Login: React.FC = () => {
           </p>
         </div>
       </form>
-
-      {/* Quick Demo Login Preset Buttons */}
-      <div className="mt-8 pt-6 border-t border-slate-800">
-        <div className="flex items-center justify-between text-xs font-semibold text-slate-400 mb-3">
-          <span className="flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-            <span>Quick Demo Access Roles</span>
-          </span>
-          <Link to="/auth/register" className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1">
-            <UserPlus className="h-3 w-3" /> New Register
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => handleQuickDemo('admin@gmail.com', true)}
-            className="flex flex-col text-left p-2.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 transition-colors cursor-pointer"
-          >
-            <span className="text-xs font-semibold text-purple-300">Super Admin</span>
-            <span className="text-[10px] text-slate-400">admin@gmail.com</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleQuickDemo('sarang@apexlogistics.com', false)}
-            className="flex flex-col text-left p-2.5 rounded-lg border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-colors cursor-pointer"
-          >
-            <span className="text-xs font-semibold text-blue-300">Tenant Admin</span>
-            <span className="text-[10px] text-slate-400">sarang@apexlogistics.com</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleQuickDemo('operations@apexcargo.com', false)}
-            className="flex flex-col text-left p-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors cursor-pointer"
-          >
-            <span className="text-xs font-semibold text-emerald-300">Operations Mgr</span>
-            <span className="text-[10px] text-slate-400">operations@apexcargo.com</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleQuickDemo('admin@omnicore.io', true)}
-            className="flex flex-col text-left p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 transition-colors cursor-pointer"
-          >
-            <span className="text-xs font-semibold text-amber-300">Platform Super Admin</span>
-            <span className="text-[10px] text-slate-400">admin@omnicore.io</span>
-          </button>
-        </div>
-      </div>
     </div>
   );
 };

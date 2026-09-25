@@ -21,7 +21,7 @@ import { Badge } from '../../components/common/Badge';
 
 export const PublicHome: React.FC = () => {
   const { cms } = useOutletContext<{ cms: TenantPublicCms | null }>();
-  const { tenantSlug = 'apex-global' } = useParams<{ tenantSlug: string }>();
+  const { tenantSlug = 'workspace' } = useParams<{ tenantSlug: string }>();
   const [awbInput, setAwbInput] = useState('');
   const navigate = useNavigate();
 

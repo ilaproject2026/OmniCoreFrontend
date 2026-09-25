@@ -7,6 +7,7 @@ import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Booking, Vehicle, Driver, VehicleType } from '../../types';
+import { useTenant } from '../../contexts/TenantContext';
 import {
   Navigation,
   Truck,
@@ -46,19 +47,20 @@ const formatVehicleType = (type?: string) => {
 
 export const DispatchBoard: React.FC = () => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
 
   const { data: bookings = [] } = useQuery({
-    queryKey: ['bookings'],
+    queryKey: ['bookings', tenant.id],
     queryFn: () => tripsApi.getBookings(),
   });
 
   const { data: vehicles = [] } = useQuery({
-    queryKey: ['fleetVehicles', 'available'],
+    queryKey: ['fleetVehicles', tenant.id, 'available'],
     queryFn: () => fleetApi.getVehicles({ status: 'available' }),
   });
 
   const { data: drivers = [] } = useQuery({
-    queryKey: ['drivers'],
+    queryKey: ['drivers', tenant.id],
     queryFn: () => driversApi.getDrivers(),
   });
 
