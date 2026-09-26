@@ -415,25 +415,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <div className="mt-1 flex items-center justify-between">
               <span className="text-[11px] text-slate-200 truncate max-w-[135px] font-medium" title={tenant.name}>
-                {tenant.name}
+                {tenant?.name}
               </span>
               <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono">
-                {tenant.status}
+                {tenant?.status}
               </span>
             </div>
-            {tenant.verticals && tenant.verticals.length > 0 && (
+            {tenant?.verticals && tenant?.verticals?.length > 0 && (
               <div className="mt-1.5 flex flex-wrap gap-1">
-                {tenant.verticals.slice(0, 2).map((v) => (
+                {tenant?.verticals?.slice(0, 2)?.map((v) => (
                   <span
                     key={v}
                     className="rounded bg-slate-800/80 px-1.5 py-0.5 text-[9px] font-medium text-slate-300 capitalize"
                   >
-                    {v.replace('_', ' ')}
+                    {v?.replace('_', ' ')}
                   </span>
                 ))}
-                {tenant.verticals.length > 2 && (
+                {tenant?.verticals?.length > 2 && (
                   <span className="rounded bg-slate-800/80 px-1 py-0.5 text-[9px] text-slate-400 font-mono">
-                    +{tenant.verticals.length - 2}
+                    +{tenant?.verticals?.length - 2}
                   </span>
                 )}
               </div>

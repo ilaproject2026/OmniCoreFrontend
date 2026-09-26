@@ -331,6 +331,7 @@ export const TenantProvisioningWizard: React.FC = () => {
                 required
                 placeholder="e.g. Acme Transport Logistics"
                 value={companyInfo.name}
+                error={fieldErrors?.company_name?.[0] || fieldErrors?.name?.[0]}
                 onChange={(e) => {
                   const val = e.target.value;
                   setCompanyInfo({
@@ -338,17 +339,65 @@ export const TenantProvisioningWizard: React.FC = () => {
                     name: val,
                     slug: val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
                   });
+                  if (fieldErrors?.company_name || fieldErrors?.name) {
+                    setFieldErrors((prev) => {
+                      if (!prev) return null;
+                      const next = { ...prev };
+                      delete next.company_name;
+                      delete next.name;
+                      return Object.keys(next).length ? next : null;
+                    });
+                  }
                 }}
               />
 
-              <Input
-                label="Tenant Subdomain / Slug"
-                required
-                placeholder="e.g. acme-transport"
-                value={companyInfo.slug}
-                onChange={(e) => setCompanyInfo({ ...companyInfo, slug: e.target.value })}
-                helperText="Subdomain: https://[slug].omnicore.io"
-              />
+              <div className="space-y-1">
+                <Input
+                  label="Tenant Subdomain / Slug"
+                  required
+                  placeholder="e.g. acme-transport"
+                  value={companyInfo.slug}
+                  error={
+                    fieldErrors?.slug
+                      ? Array.isArray(fieldErrors.slug)
+                        ? fieldErrors.slug.join(' ')
+                        : String(fieldErrors.slug)
+                      : undefined
+                  }
+                  onChange={(e) => {
+                    setCompanyInfo({ ...companyInfo, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') });
+                    if (fieldErrors?.slug) {
+                      setFieldErrors((prev) => {
+                        if (!prev) return null;
+                        const next = { ...prev };
+                        delete next.slug;
+                        return Object.keys(next).length ? next : null;
+                      });
+                    }
+                  }}
+                  helperText="Subdomain: https://[slug].omnicore.io (Must be unique across all tenants)"
+                />
+                {fieldErrors?.slug && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rand = Math.floor(100 + Math.random() * 900);
+                      const base = companyInfo.slug.replace(/-\d+$/, '') || 'workspace';
+                      const newSlug = `${base}-${rand}`;
+                      setCompanyInfo({ ...companyInfo, slug: newSlug });
+                      setFieldErrors((prev) => {
+                        if (!prev) return null;
+                        const next = { ...prev };
+                        delete next.slug;
+                        return Object.keys(next).length ? next : null;
+                      });
+                    }}
+                    className="text-[11px] text-blue-400 hover:text-blue-300 underline font-medium flex items-center gap-1 mt-1 cursor-pointer"
+                  >
+                    <Sparkles className="h-3 w-3" /> Auto-generate unique slug
+                  </button>
+                )}
+              </div>
 
               <Input
                 label="Primary Contact Person"
@@ -364,7 +413,19 @@ export const TenantProvisioningWizard: React.FC = () => {
                 required
                 placeholder="e.g. admin@company.com"
                 value={companyInfo.primaryContactEmail}
-                onChange={(e) => setCompanyInfo({ ...companyInfo, primaryContactEmail: e.target.value })}
+                error={fieldErrors?.primary_contact_email?.[0] || fieldErrors?.email?.[0]}
+                onChange={(e) => {
+                  setCompanyInfo({ ...companyInfo, primaryContactEmail: e.target.value });
+                  if (fieldErrors?.primary_contact_email || fieldErrors?.email) {
+                    setFieldErrors((prev) => {
+                      if (!prev) return null;
+                      const next = { ...prev };
+                      delete next.primary_contact_email;
+                      delete next.email;
+                      return Object.keys(next).length ? next : null;
+                    });
+                  }
+                }}
               />
 
               <Input
@@ -670,7 +731,19 @@ export const TenantProvisioningWizard: React.FC = () => {
                 required
                 placeholder="e.g. admin@company.com"
                 value={adminUser.email}
-                onChange={(e) => setAdminUser({ ...adminUser, email: e.target.value })}
+                error={fieldErrors?.admin_email?.[0] || fieldErrors?.email?.[0]}
+                onChange={(e) => {
+                  setAdminUser({ ...adminUser, email: e.target.value });
+                  if (fieldErrors?.admin_email || fieldErrors?.email) {
+                    setFieldErrors((prev) => {
+                      if (!prev) return null;
+                      const next = { ...prev };
+                      delete next.admin_email;
+                      delete next.email;
+                      return Object.keys(next).length ? next : null;
+                    });
+                  }
+                }}
               />
 
               <Input
@@ -755,18 +828,41 @@ export const TenantProvisioningWizard: React.FC = () => {
                   </div>
                 )}
 
-                <div className="pt-2 flex items-center justify-center gap-3">
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => {
                       setProvisionError(null);
-                      setFieldErrors(null);
                       setCurrentStep(1);
                     }}
                   >
-                    Edit Company & Email Info
+                    Edit Company & Slug Info
                   </Button>
+                  {fieldErrors?.slug && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-blue-500/40 text-blue-400 hover:bg-blue-950/30"
+                      onClick={() => {
+                        const rand = Math.floor(100 + Math.random() * 900);
+                        const base = companyInfo.slug.replace(/-\d+$/, '') || 'workspace';
+                        const newSlug = `${base}-${rand}`;
+                        setCompanyInfo({ ...companyInfo, slug: newSlug });
+                        setFieldErrors((prev) => {
+                          if (!prev) return null;
+                          const next = { ...prev };
+                          delete next.slug;
+                          return Object.keys(next).length ? next : null;
+                        });
+                        setProvisionError(null);
+                        setCurrentStep(1);
+                      }}
+                      leftIcon={<Sparkles className="h-3.5 w-3.5" />}
+                    >
+                      Make Slug Unique & Edit
+                    </Button>
+                  )}
                   <Button
                     variant="primary"
                     size="sm"
