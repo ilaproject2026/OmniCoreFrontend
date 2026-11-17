@@ -250,6 +250,11 @@ export const FuelManagementTab: React.FC = () => {
           }}
           className="space-y-4 text-xs"
         >
+          {logFuelMutation.isError && (
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-rose-300" role="alert">
+              {(logFuelMutation.error as Error)?.message || 'Fuel transaction could not be saved.'}
+            </div>
+          )}
           <Select
             label="Fleet Vehicle"
             required

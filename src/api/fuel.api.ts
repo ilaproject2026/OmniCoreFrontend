@@ -27,17 +27,30 @@ export const fuelApi = {
 
   logFuelEntry: async (payload: Partial<FuelLogEntry>): Promise<FuelLogEntry> => {
     const liters = Number(payload.liters || 0);
-    const rate = Number(payload.costPerLiter || payload.pricePerLiter || 0);
-    const response = await apiClient.post<any>('/finance/fuel/', {
-      vehicle: payload.vehicleId,
-      driver: payload.driverId || null,
-      transaction_date: payload.date ? new Date(payload.date).toISOString() : new Date().toISOString(),
-      fuel_station: payload.fuelStation || '',
-      fuel_liters: liters,
-      rate_per_liter: rate,
-      total_cost: liters * rate,
-      odometer_reading: payload.odometerKm,
-    });
+    const rate = Math.round(Number(payload.costPerLiter || payload.pricePerLiter || 0) * 100) / 100;
+    const totalCost = Math.round(liters * rate * 100) / 100;
+    let response;
+    try {
+      response = await apiClient.post<any>('/finance/fuel/', {
+        vehicle: payload.vehicleId,
+        driver: payload.driverId || null,
+        transaction_date: payload.date ? new Date(payload.date).toISOString() : new Date().toISOString(),
+        fuel_station: payload.fuelStation || '',
+        fuel_liters: liters,
+        rate_per_liter: rate,
+        total_cost: totalCost,
+        odometer_reading: payload.odometerKm,
+      });
+    } catch (error: any) {
+      const body = error?.response?.data || error?.errors || {};
+      const errorBody = body?.error || {};
+      const fieldErrors = errorBody?.fields || body?.fields || {};
+      const details = Object.entries(fieldErrors).flatMap(([field, value]) =>
+        (Array.isArray(value) ? value : [value]).map((message) => `${field}: ${String(message)}`)
+      );
+      const message = errorBody?.message || body?.message || error?.message || 'Fuel transaction could not be saved.';
+      throw new Error(details.length ? `${message} (${details.join(' | ')})` : message);
+    }
     const row = response.data;
     return {
       ...payload,

@@ -35,6 +35,7 @@ export const toBackendAccidentPayload = (payload: Partial<AccidentReport>): Reco
 
 export const normalizeAccidentResponse = (data: any): AccidentReport => {
   if (!data) return data;
+  const estimatedDamageCost = Number(data.estimated_damage_cost ?? data.estimatedDamageCost ?? data.estimated_repair_cost ?? data.estimatedRepairCost ?? 0);
   return {
     ...data,
     id: data.id || `acc_${Math.random().toString(36).substring(2, 7)}`,
@@ -51,7 +52,8 @@ export const normalizeAccidentResponse = (data: any): AccidentReport => {
     thirdPartyInvolved: data.third_party_involved ?? data.thirdPartyInvolved ?? false,
     thirdPartyDetails: data.third_party_details || data.thirdPartyDetails,
     policeReportNumber: data.police_report_number || data.policeReportNumber,
-    estimatedRepairCost: Number(data.estimated_damage_cost ?? data.estimated_repair_cost ?? data.estimatedRepairCost ?? 0),
+    estimatedRepairCost: estimatedDamageCost,
+    estimatedDamageCost,
     actualRepairCost: data.actual_repair_cost !== undefined ? Number(data.actual_repair_cost) : data.actualRepairCost,
     insuranceClaimId: data.insurance_claim_id || data.insuranceClaimId,
     insuranceClaimStatus: data.insurance_claim_status || data.insuranceClaimStatus || 'filed',
