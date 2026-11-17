@@ -22,6 +22,8 @@ import {
   Mail,
   MapPin,
   FileCheck,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { formatDate } from '../../lib/utils';
 import { useTenant } from '../../contexts/TenantContext';
@@ -31,8 +33,13 @@ export const DriverList: React.FC = () => {
   const { tenant } = useTenant();
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+  const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [driverImage, setDriverImage] = useState<File | null>(null);
+  const [imageValidationError, setImageValidationError] = useState<string | null>(null);
+  const [driverDocuments, setDriverDocuments] = useState<Array<{ file: File; name: string }>>([]);
+  const [documentReplacements, setDocumentReplacements] = useState<Record<string, File>>({});
 
   // Add Driver Form State
   const [newDriver, setNewDriver] = useState({
@@ -56,10 +63,33 @@ export const DriverList: React.FC = () => {
 
   // Create Driver Mutation
   const createMutation = useMutation({
-    mutationFn: (payload: Partial<Driver>) => driversApi.createDriver(payload),
+    mutationFn: (payload: Partial<Driver> & { imageFile?: File; documentFiles?: Array<{ file: File; name: string }> }) => driversApi.createDriver(payload),
+    onError: (error: any) => {
+      if (!error?.driverCreated) return;
+      const driver = error.driverCreated as Driver;
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      setEditingDriver(driver);
+      setNewDriver({
+        firstName: driver.firstName,
+        lastName: driver.lastName,
+        phone: driver.phone,
+        email: driver.email,
+        address: driver.address || '',
+        licenseType: driver.licenseType,
+        licenseNumber: driver.licenseNumber,
+        licenseExpiryDate: driver.licenseExpiryDate,
+        experienceYears: driver.experienceYears || 0,
+        status: driver.status,
+        safetyScore: driver.safetyScore || 95,
+      });
+      setActionFeedback(`Driver ${driver.firstName} ${driver.lastName} was created. The image or document upload failed; correct the attachment and save this existing driver.`);
+    },
     onSuccess: (createdDriver) => {
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       setIsAddModalOpen(false);
+      setDriverImage(null);
+      setDriverDocuments([]);
+      setImageValidationError(null);
       setNewDriver({
         firstName: '',
         lastName: '',
@@ -78,13 +108,97 @@ export const DriverList: React.FC = () => {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<Driver> & { imageFile?: File; documentFiles?: Array<{ file: File; name: string }> } }) => driversApi.updateDriver(id, payload),
+    onSuccess: (updatedDriver) => {
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      setIsAddModalOpen(false);
+      setEditingDriver(null);
+      setDriverImage(null);
+      setDriverDocuments([]);
+      setImageValidationError(null);
+      setActionFeedback(`Driver ${updatedDriver.firstName} ${updatedDriver.lastName} updated successfully.`);
+      setTimeout(() => setActionFeedback(null), 4000);
+    },
+  });
+
+  const attachmentMutation = useMutation({
+    mutationFn: () => driversApi.updateDriverAttachments(
+      editingDriver!.id,
+      driverImage || undefined,
+      driverDocuments,
+      Object.entries(documentReplacements).map(([id, file]) => {
+        const current = editingDriver!.documents.find((document) => document.id === id)!;
+        return { id, file, name: current.documentName || current.type, type: current.type };
+      }),
+    ),
+    onSuccess: (updatedDriver) => {
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      setEditingDriver(updatedDriver);
+      setDriverImage(null);
+      setDriverDocuments([]);
+      setDocumentReplacements({});
+      setImageValidationError(null);
+      setActionFeedback(`Photo and documents for ${updatedDriver.firstName} ${updatedDriver.lastName} saved.`);
+      setTimeout(() => setActionFeedback(null), 4000);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (driver: Driver) => driversApi.deleteDriver(driver.id),
+    onSuccess: (_, deletedDriver) => {
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      setActionFeedback(`Driver ${deletedDriver.firstName} ${deletedDriver.lastName} deleted.`);
+      setTimeout(() => setActionFeedback(null), 4000);
+    },
+  });
+
+  const openEditDriver = (driver: Driver) => {
+    setDriverImage(null);
+    setDriverDocuments([]);
+    setDocumentReplacements({});
+    setImageValidationError(null);
+    setEditingDriver(driver);
+    setNewDriver({
+      firstName: driver.firstName || '',
+      lastName: driver.lastName || '',
+      phone: driver.phone || '',
+      email: driver.email || '',
+      address: driver.address || '',
+      licenseType: driver.licenseType || 'Class A CDL',
+      licenseNumber: driver.licenseNumber || '',
+      licenseExpiryDate: driver.licenseExpiryDate || '',
+      experienceYears: driver.experienceYears || 0,
+      status: driver.status,
+      safetyScore: driver.safetyScore || 95,
+    });
+    createMutation.reset();
+    updateMutation.reset();
+    setIsAddModalOpen(true);
+  };
+
+  const handleDeleteDriver = (driver: Driver) => {
+    if (window.confirm(`Delete ${driver.firstName} ${driver.lastName}? This action cannot be undone.`)) {
+      deleteMutation.mutate(driver);
+    }
+  };
+
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate({
+    const payload: Partial<Driver> & { imageFile?: File; documentFiles?: Array<{ file: File; name: string }> } = {
       ...newDriver,
       experienceYears: Number(newDriver.experienceYears),
       safetyScore: Number(newDriver.safetyScore),
-    });
+      imageFile: driverImage || undefined,
+      documentFiles: driverDocuments,
+    };
+    if (imageValidationError) return;
+    if (editingDriver) {
+      const { imageFile: _imageFile, documentFiles: _documentFiles, ...driverFields } = payload;
+      updateMutation.mutate({ id: editingDriver.id, payload: driverFields });
+    } else {
+      createMutation.mutate(payload);
+    }
   };
 
   const columns: ColumnDef<Driver>[] = [
@@ -209,17 +323,17 @@ export const DriverList: React.FC = () => {
       key: 'actions',
       header: 'Actions',
       render: (_, row) => (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedDriver(row);
-          }}
-          leftIcon={<Eye className="h-3.5 w-3.5 text-blue-400" />}
-        >
-          View Profile
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedDriver(row); }} leftIcon={<Eye className="h-3.5 w-3.5 text-blue-400" />}>
+            View
+          </Button>
+          <Button variant="ghost" size="icon" title="Edit driver" aria-label={`Edit ${row.firstName} ${row.lastName}`} onClick={(e) => { e.stopPropagation(); openEditDriver(row); }}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" title="Delete driver" aria-label={`Delete ${row.firstName} ${row.lastName}`} onClick={(e) => { e.stopPropagation(); handleDeleteDriver(row); }} disabled={deleteMutation.isPending}>
+            <Trash2 className="h-4 w-4 text-rose-400" />
+          </Button>
+        </div>
       ),
     },
   ];
@@ -239,7 +353,7 @@ export const DriverList: React.FC = () => {
           size="sm"
           variant="primary"
           leftIcon={<Plus className="h-4 w-4" />}
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={() => { setEditingDriver(null); setIsAddModalOpen(true); }}
         >
           Add Driver
         </Button>
@@ -286,18 +400,18 @@ export const DriverList: React.FC = () => {
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        title="Register Commercial Linehaul Driver"
-        description="Enroll a new commercial CDL driver into the active fleet roster."
+        title={editingDriver ? 'Edit Driver Profile' : 'Register Commercial Linehaul Driver'}
+        description={editingDriver ? 'Update this driver’s contact and licence details.' : 'Enroll a new commercial CDL driver into the active fleet roster.'}
         size="lg"
       >
         <form onSubmit={handleAddSubmit} className="space-y-4 text-xs">
-          {createMutation.isError && (
+          {(createMutation.isError || updateMutation.isError || attachmentMutation.isError) && (
             <div className="p-3 rounded-xl border border-rose-500/40 bg-rose-950/40 text-rose-300 text-xs flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0" />
               <div>
-                <span className="font-semibold block">Backend Validation Error:</span>
+                <span className="font-semibold block">{editingDriver ? 'Upload or validation error:' : 'Backend validation error:'}</span>
                 <span>
-                  {(createMutation.error as any)?.message ||
+                  {(attachmentMutation.error as any)?.message || (updateMutation.error as any)?.message || (createMutation.error as any)?.message ||
                     'Driver registration failed on backend validation.'}
                 </span>
               </div>
@@ -305,6 +419,49 @@ export const DriverList: React.FC = () => {
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+              <label className="block text-xs text-slate-300">
+                <span className="mb-2 block font-semibold">{editingDriver ? 'Replace driver photo' : 'Driver photo'}</span>
+                <input type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  const extensionSupported = /\.(jpe?g|png|webp)$/i.test(file?.name || '');
+                  const allowed = file && extensionSupported && (!file.type || ['image/jpeg', 'image/png', 'image/webp'].includes(file.type));
+                  setImageValidationError(file && !allowed ? 'Choose a JPG, PNG, or WEBP image. HEIC and other formats are not supported.' : null);
+                  setDriverImage(allowed ? file : null);
+                }} className="block w-full text-xs text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-500/15 file:px-3 file:py-2 file:text-blue-300" />
+                <span className="mt-1 block text-[11px] text-slate-500">Supported formats: JPG, PNG, WEBP</span>
+                {imageValidationError && <span className="mt-1 block text-[11px] text-rose-300">{imageValidationError}</span>}
+              </label>
+              <label className="block text-xs text-slate-300">
+                <span className="mb-2 block font-semibold">Driver documents</span>
+                <input type="file" multiple accept=".pdf,image/*" onChange={(e) => setDriverDocuments(Array.from(e.target.files || []).map((file) => ({ file, name: '' })))} className="block w-full text-xs text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-500/15 file:px-3 file:py-2 file:text-blue-300" />
+                <span className="mt-1 block text-[11px] text-slate-500">{driverDocuments.length ? `${driverDocuments.length} file(s) selected — identify each document below` : 'Upload PDF or image files'}</span>
+                {driverDocuments.map((document, index) => (
+                  <div key={`${document.file.name}-${index}`} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 items-center">
+                    <span className="truncate text-[11px] text-slate-400" title={document.file.name}>{document.file.name}</span>
+                    <select required value={document.name} onChange={(e) => setDriverDocuments((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: e.target.value } : item))} className="h-9 rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-white">
+                      <option value="">Select document type</option>
+                      <option value="Driving Licence">Driving Licence</option>
+                      <option value="Aadhaar Card">Aadhaar Card</option>
+                      <option value="Passport">Passport</option>
+                      <option value="Medical Certificate">Medical Certificate</option>
+                      <option value="Police Clearance">Police Clearance</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                ))}
+                {editingDriver?.documents?.map((document) => (
+                  <div key={document.id} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 items-center border-t border-slate-800 pt-3">
+                    <span className="truncate text-[11px] text-slate-300">Replace: {document.documentName || document.type.replace(/_/g, ' ')}</span>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) setDocumentReplacements((current) => ({ ...current, [document.id]: file }));
+                    }} className="block w-full text-[11px] text-slate-400" />
+                    {documentReplacements[document.id] && <span className="sm:col-span-2 text-[11px] text-emerald-300">Selected: {documentReplacements[document.id].name}</span>}
+                  </div>
+                ))}
+              </label>
+            </div>
             <Input
               label="Driver First Name"
               required
@@ -409,11 +566,23 @@ export const DriverList: React.FC = () => {
           </div>
 
           <div className="mt-6 pt-4 border-t border-slate-800 flex justify-end gap-3">
+            {editingDriver && (
+              <Button
+                variant="secondary"
+                size="sm"
+                type="button"
+                disabled={!driverImage && !driverDocuments.length && !Object.keys(documentReplacements).length}
+                isLoading={attachmentMutation.isPending}
+                onClick={() => attachmentMutation.mutate()}
+              >
+                Save Photo & Documents
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
               type="button"
-              onClick={() => setIsAddModalOpen(false)}
+              onClick={() => { setIsAddModalOpen(false); setEditingDriver(null); }}
             >
               Cancel
             </Button>
@@ -421,9 +590,9 @@ export const DriverList: React.FC = () => {
               variant="primary"
               size="sm"
               type="submit"
-              isLoading={createMutation.isPending}
+              isLoading={createMutation.isPending || updateMutation.isPending}
             >
-              Register Driver
+              {editingDriver ? 'Save Changes' : 'Register Driver'}
             </Button>
           </div>
         </form>

@@ -41,6 +41,7 @@ export const Register: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const [showRegistration, setShowRegistration] = useState(false);
   const registrationFormRef = useRef<HTMLFormElement>(null);
 
@@ -88,7 +89,7 @@ export const Register: React.FC = () => {
       badge: 'Most Popular',
       badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
       highlight: true,
-      tagline: 'Full operations + Role Permissions, Audit, CRM & Reports.',
+      tagline: 'Role permissions, audit, contracts, HR, marketing, and reports for growing fleets.',
       tenantLimit: 'Single Tenant Only',
       keyFeatures: [
         'All Basic Starter features',
@@ -106,15 +107,15 @@ export const Register: React.FC = () => {
       annualMonthlyPrice: Math.round((PACKAGES.corporate?.annualPrice || 8990) / 12),
       badge: 'Mid-Market B2B',
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-      tagline: 'Advanced B2B contracts, CRM, Insurance, Courier & Shuttle.',
+      tagline: 'Advanced B2B operations with CRM, insurance, and expanded fleet capacity.',
       tenantLimit: 'Single Large Enterprise Tenant',
       keyFeatures: [
         'All Standard Fleet features',
         'CRM Sales Pipeline & Deals',
-        'Insurance & Claim Tracking',
-        'Courier & Express Delivery Hub',
-        'School & Corporate Shuttle',
-        'Warehouse & Cross-Docking',
+        'Insurance & Claims Management',
+        'Capacity for Up to 500 Vehicles',
+        'Up to 50 User Seats',
+        'Priority Business Support',
       ],
     },
     {
@@ -166,7 +167,7 @@ export const Register: React.FC = () => {
       localStorage.setItem('omni_org_owner_email', email.trim().toLowerCase());
       localStorage.setItem('omni_registered_company', companyName.trim());
 
-      await register({
+      const registration = await register({
         company_name: companyName.trim(),
         first_name: firstName.trim() || 'Admin',
         last_name: lastName.trim() || 'User',
@@ -177,11 +178,18 @@ export const Register: React.FC = () => {
         package_tier: selectedTier,
       });
 
+      const confirmedTier = registration.packageTier;
+      const planMessage = !registration.packageVerified
+        ? `Your organization was created, but we could not confirm the ${TIER_DISPLAY_NAMES[selectedTier]} package from the backend. Please check the subscription in your workspace.`
+        : confirmedTier !== selectedTier
+          ? `Your organization was created, but the backend assigned ${TIER_DISPLAY_NAMES[confirmedTier || 'standard']} instead of ${TIER_DISPLAY_NAMES[selectedTier]}.`
+          : `Welcome to OmniCore! ${companyName} is active on the ${TIER_DISPLAY_NAMES[confirmedTier || selectedTier]} plan.`;
+      setSuccessMessage(planMessage);
       setIsSuccess(true);
       setTimeout(() => {
         navigate('/app/dashboard', {
           state: {
-            successMessage: `Welcome to OmniCore! ${companyName} has been initialized with the ${TIER_DISPLAY_NAMES[selectedTier]} plan.`,
+            successMessage: planMessage,
           },
         });
       }, 500);
@@ -235,7 +243,7 @@ export const Register: React.FC = () => {
       {isSuccess && (
         <div className="mb-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-emerald-400 flex items-center gap-2.5 animate-pulse">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-          <span>Organization successfully registered! Launching your workspace...</span>
+          <span>{successMessage || 'Organization successfully registered! Launching your workspace...'}</span>
         </div>
       )}
 

@@ -207,7 +207,7 @@ export const FleetList: React.FC = () => {
       accessor: (r) => r.vertical,
       render: (val: string) => (
         <Badge variant="outline" size="sm" className="capitalize">
-          {val.replace('_', ' ')}
+          {val?.replace('_', ' ')}
         </Badge>
       ),
     },

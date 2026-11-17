@@ -193,6 +193,7 @@ export interface VehicleDocument {
   id: string;
   type: 'insurance' | 'registration' | 'fitness_cert' | 'road_tax' | 'permit' | 'pollution_cert';
   documentNumber: string;
+  documentName?: string;
   issueDate: string;
   expiryDate: string;
   fileUrl?: string;
@@ -270,8 +271,10 @@ export interface Vehicle {
 // ----------------- Driver Management -----------------
 export interface DriverDocument {
   id: string;
-  type: 'commercial_license' | 'medical_cert' | 'police_clearance' | 'id_proof';
+  type: string;
   documentNumber: string;
+  documentName?: string;
+  fileUrl?: string;
   issueDate: string;
   expiryDate: string;
   isExpiringSoon: boolean;

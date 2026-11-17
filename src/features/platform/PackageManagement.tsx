@@ -32,25 +32,26 @@ export const PackageManagement: React.FC = () => {
   });
 
   const comparisonFeatures = [
-    { name: 'Multiple Tenants Creation', basic: false, standard: false, enterprise: true },
-    { name: 'Vehicle Capacity Limit', basic: 'Up to 25 Units', standard: 'Up to 150 Units', enterprise: 'Unlimited Units' },
-    { name: 'Operator & Driver User Seats', basic: '5 Seats', standard: '25 Seats', enterprise: 'Unlimited' },
-    { name: 'Fleet & Driver Registry', basic: true, standard: true, enterprise: true },
-    { name: 'Trip Dispatch & Live Tracking', basic: true, standard: true, enterprise: true },
-    { name: 'Workshop & Maintenance', basic: true, standard: true, enterprise: true },
-    { name: 'Finance & Invoicing Engine', basic: true, standard: true, enterprise: true },
-    { name: 'Warehouse & Inventory Hub', basic: true, standard: true, enterprise: true },
-    { name: 'Role Permissions & Access Matrix', basic: false, standard: true, enterprise: true },
-    { name: 'Platform Audit Log & Security', basic: false, standard: true, enterprise: true },
-    { name: 'Contracts & Tenders (SLA Tracking)', basic: false, standard: true, enterprise: true },
-    { name: 'HR Department & Personnel', basic: false, standard: true, enterprise: true },
-    { name: 'Marketing Campaigns & Promos', basic: false, standard: true, enterprise: true },
-    { name: 'Reports & Business Analytics', basic: false, standard: true, enterprise: true },
-    { name: 'Courier & Express Delivery (AWB)', basic: false, standard: false, enterprise: true },
-    { name: 'Corporate Shuttle / Pooling', basic: false, standard: false, enterprise: true },
-    { name: 'CRM & Sales Pipeline Hub', basic: false, standard: false, enterprise: true },
-    { name: 'Public Booking Portal & Tracking', basic: false, standard: false, enterprise: true },
-    { name: 'Dedicated Lead & 24/7 SLA', basic: false, standard: false, enterprise: true },
+    { name: 'Multiple Tenants Creation', basic: false, standard: false, corporate: false, enterprise: true },
+    { name: 'Vehicle Capacity Limit', basic: 'Up to 25 Units', standard: 'Up to 100 Units', corporate: 'Up to 500 Units', enterprise: 'Unlimited Units' },
+    { name: 'Operator & Driver User Seats', basic: '5 Seats', standard: '25 Seats', corporate: '50 Seats', enterprise: 'Unlimited' },
+    { name: 'Fleet & Driver Registry', basic: true, standard: true, corporate: true, enterprise: true },
+    { name: 'Trip Dispatch & Live Tracking', basic: true, standard: true, corporate: true, enterprise: true },
+    { name: 'Workshop & Maintenance', basic: true, standard: true, corporate: true, enterprise: true },
+    { name: 'Finance & Invoicing Engine', basic: true, standard: true, corporate: true, enterprise: true },
+    { name: 'Warehouse & Inventory Hub', basic: true, standard: true, corporate: true, enterprise: true },
+    { name: 'Role Permissions & Access Matrix', basic: false, standard: true, corporate: true, enterprise: true },
+    { name: 'Platform Audit Log & Security', basic: false, standard: true, corporate: true, enterprise: true },
+    { name: 'Contracts & Tenders (SLA Tracking)', basic: false, standard: true, corporate: true, enterprise: true },
+    { name: 'HR Department & Personnel', basic: false, standard: true, corporate: true, enterprise: true },
+    { name: 'Marketing Campaigns & Promos', basic: false, standard: true, corporate: true, enterprise: true },
+    { name: 'Reports & Business Analytics', basic: false, standard: true, corporate: true, enterprise: true },
+    { name: 'CRM & Sales Pipeline Hub', basic: false, standard: false, corporate: true, enterprise: true },
+    { name: 'Insurance & Claims', basic: false, standard: false, corporate: true, enterprise: true },
+    { name: 'Courier & Express Delivery (AWB)', basic: false, standard: false, corporate: false, enterprise: true },
+    { name: 'Corporate Shuttle / Pooling', basic: false, standard: false, corporate: false, enterprise: true },
+    { name: 'Public Booking Portal & Tracking', basic: false, standard: false, corporate: false, enterprise: true },
+    { name: 'Dedicated Lead & 24/7 SLA', basic: false, standard: false, corporate: false, enterprise: true },
   ];
 
   return (
@@ -247,6 +248,7 @@ export const PackageManagement: React.FC = () => {
                   <th className="py-3.5 px-4 font-semibold text-slate-300">Platform Capability / Quota</th>
                   <th className="py-3.5 px-4 font-semibold text-blue-400 uppercase">Basic Starter</th>
                   <th className="py-3.5 px-4 font-semibold text-cyan-400 uppercase">Standard Fleet</th>
+                  <th className="py-3.5 px-4 font-semibold text-emerald-400 uppercase">Corporate</th>
                   <th className="py-3.5 px-4 font-semibold text-purple-400 uppercase">OmniCore Enterprise</th>
                 </tr>
               </thead>
@@ -254,7 +256,7 @@ export const PackageManagement: React.FC = () => {
                 {comparisonFeatures.map((row, i) => (
                   <tr key={i} className="hover:bg-slate-900/40 transition-colors">
                     <td className="py-3 px-4 font-medium text-slate-200">{row.name}</td>
-                    {(['basic', 'standard', 'enterprise'] as const).map((tierKey) => {
+                    {(['basic', 'standard', 'corporate', 'enterprise'] as const).map((tierKey) => {
                       const val = row[tierKey];
                       return (
                         <td key={tierKey} className="py-3 px-4">

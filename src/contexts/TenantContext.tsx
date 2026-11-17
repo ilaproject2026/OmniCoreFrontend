@@ -3,7 +3,15 @@ import { Tenant, VerticalType, PackageTier, AddonKey, User, TenantRole } from '.
 import { useAuth } from './AuthContext';
 import { PACKAGES, TIER_RANK, MODULE_REQUIRED_TIERS, TIER_DISPLAY_NAMES } from '../config/constants';
 import { platformApi } from '../api/platform.api';
+import { apiClient, tenantStorage } from '../api/client';
 import { clearQueryClientCache } from '../api/queryClient';
+
+const normalizePackageTier = (value: unknown): PackageTier | undefined => {
+  const tier = String(value || '').toLowerCase();
+  return tier === 'basic' || tier === 'standard' || tier === 'corporate' || tier === 'enterprise'
+    ? tier
+    : undefined;
+};
 
 export const ROLE_DEFAULT_PERMISSIONS: Record<TenantRole, string[]> = {
   customer_admin: ['*'],
@@ -153,6 +161,25 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
           if (isMatchingTenant) {
             setTenant(parsed);
+            const tenantId = parsed.id;
+            apiClient.get<any>('/subscriptions/current/').then((response) => {
+              const subscription = response.data?.subscription || response.data;
+              const packageTier = normalizePackageTier(subscription?.package?.code || subscription?.package?.name);
+              if (!packageTier) return;
+              setTenant((current) => {
+                if (current.id !== tenantId) return current;
+                const updated = {
+                  ...current,
+                  verticals: packageTier === 'enterprise' ? ['all_verticals'] as VerticalType[] : current.verticals,
+                  subscription: {
+                    ...current.subscription,
+                    package: packageTier,
+                  },
+                };
+                localStorage.setItem('omni_active_tenant', JSON.stringify(updated));
+                return updated;
+              });
+            }).catch(() => {});
             return;
           }
         }
@@ -198,6 +225,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const switchTenant = useCallback((newTenant: Tenant) => {
     setTenant(newTenant);
     localStorage.setItem('omni_active_tenant', JSON.stringify(newTenant));
+    if (newTenant.id) tenantStorage.setActiveTenantId(newTenant.id);
     clearQueryClientCache();
   }, []);
 

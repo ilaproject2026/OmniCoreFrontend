@@ -132,6 +132,8 @@ export const normalizeVehicleResponse = (data: any): Vehicle => {
           id: doc.id || `doc_${Math.random().toString(36).substring(2, 7)}`,
           type: mapDocumentTypeToFrontend(doc.type || doc.document_type),
           documentNumber: doc.document_number || doc.documentNumber || '',
+          documentName: doc.document_name || doc.documentName || '',
+          fileUrl: doc.file_url || doc.file || (doc.file_path?.startsWith('http') ? doc.file_path : ''),
           issueDate: doc.issue_date || doc.issueDate || '',
           expiryDate: doc.expiry_date || doc.expiryDate || '',
           isExpired: doc.status === 'EXPIRED' || (doc.expiry_date ? new Date(doc.expiry_date) < new Date() : false),
@@ -207,7 +209,7 @@ export const fleetApi = {
   },
 
   updateVehicle: async (id: string, payload: Partial<Vehicle>): Promise<Vehicle> => {
-    const backendData = toBackendVehiclePayload(payload);
+    const backendData = toBackendVehiclePatchPayload(payload);
     try {
       const response = await apiClient.patch<any>(`/fleet/vehicles/${id}/`, backendData);
       return normalizeVehicleResponse(response.data);
@@ -227,4 +229,68 @@ export const fleetApi = {
       throw err;
     }
   },
+
+  createVehicleDocument: async (vehicleId: string, document: {
+    type: VehicleDocument['type']; documentNumber: string; issueDate: string; expiryDate: string; file: File;
+  }): Promise<Vehicle> => {
+    const form = new FormData();
+    form.append('vehicle', vehicleId);
+    form.append('document_type', mapDocumentTypeToBackend(document.type));
+    form.append('document_number', document.documentNumber);
+    form.append('issue_date', document.issueDate);
+    form.append('expiry_date', document.expiryDate);
+    form.append('file', document.file);
+    await apiClient.post('/fleet/vehicles/documents/', form);
+    return fleetApi.getVehicleById(vehicleId);
+  },
+
+  updateVehicleDocument: async (vehicleId: string, documentId: string, document: {
+    type: VehicleDocument['type']; documentNumber: string; issueDate: string; expiryDate: string; file?: File;
+  }): Promise<Vehicle> => {
+    const form = new FormData();
+    form.append('document_type', mapDocumentTypeToBackend(document.type));
+    form.append('document_number', document.documentNumber);
+    form.append('issue_date', document.issueDate);
+    form.append('expiry_date', document.expiryDate);
+    if (document.file) form.append('file', document.file);
+    await apiClient.patch(`/fleet/vehicles/documents/${documentId}/`, form);
+    return fleetApi.getVehicleById(vehicleId);
+  },
+
+  deleteVehicleDocument: async (vehicleId: string, documentId: string): Promise<Vehicle> => {
+    await apiClient.delete(`/fleet/vehicles/documents/${documentId}/`);
+    return fleetApi.getVehicleById(vehicleId);
+  },
+};
+
+export const mapDocumentTypeToBackend = (type: VehicleDocument['type']): string => {
+  const types: Record<VehicleDocument['type'], string> = {
+    insurance: 'INSURANCE',
+    registration: 'REGISTRATION',
+    fitness_cert: 'FITNESS',
+    road_tax: 'ROAD_TAX',
+    permit: 'PERMIT',
+    pollution_cert: 'POLLUTION',
+  };
+  return types[type] || 'OTHER';
+};
+
+export const toBackendVehiclePatchPayload = (payload: Partial<Vehicle>): Record<string, any> => {
+  const patch: Record<string, any> = {};
+  const has = (...keys: string[]) => keys.some((key) => Object.prototype.hasOwnProperty.call(payload, key));
+  if (has('registrationNumber', 'registration_number')) patch.registration_number = payload.registrationNumber ?? (payload as any).registration_number;
+  if (has('make')) patch.make = payload.make;
+  if (has('model')) patch.model = payload.model;
+  if (has('year')) patch.year = payload.year;
+  if (has('vin', 'vin_number')) patch.vin_number = payload.vin ?? (payload as any).vin_number;
+  if (has('odometerKm', 'odometer')) patch.odometer = payload.odometerKm ?? (payload as any).odometer;
+  if (has('capacityKg', 'payload_capacity_kg')) patch.payload_capacity_kg = payload.capacityKg ?? (payload as any).payload_capacity_kg;
+  if (has('fuelType', 'fuel_type')) patch.fuel_type = payload.fuelType ?? (payload as any).fuel_type;
+  if (has('financingStatus', 'ownership')) patch.ownership = mapOwnershipToBackend(payload.financingStatus ?? (payload as any).ownership);
+  if (has('status')) {
+    patch.status = mapStatusToBackend(payload.status);
+    patch.availability = mapAvailabilityToBackend(payload.status);
+  }
+  if (has('availability')) patch.availability = mapAvailabilityToBackend(undefined, (payload as any).availability);
+  return patch;
 };

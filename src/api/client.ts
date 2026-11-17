@@ -46,21 +46,16 @@ export const tokenStorage = {
 // Tenant Context Storage
 export const tenantStorage = {
   getActiveTenantId: (): string | null => {
-    const directId =
-      localStorage.getItem('active_tenant_id') ||
-      localStorage.getItem('omni_active_tenant_id');
-    if (directId) return directId;
-
     const rawTenant = localStorage.getItem('omni_active_tenant');
     if (rawTenant) {
       try {
         const parsed = JSON.parse(rawTenant);
-        return parsed?.id || null;
+        if (parsed?.id) return parsed.id;
       } catch {
-        return null;
+        // Fall back to the legacy tenant keys when the cached tenant object is invalid.
       }
     }
-    return null;
+    return localStorage.getItem('active_tenant_id') || localStorage.getItem('omni_active_tenant_id');
   },
   setActiveTenantId: (id: string): void => {
     localStorage.setItem('active_tenant_id', id);
@@ -102,6 +97,11 @@ apiClient.interceptors.request.use(
     // Strip redundant /api/v1 if present in url since baseURL already includes it
     if (config.url?.startsWith('/api/v1/')) {
       config.url = config.url.replace('/api/v1', '');
+    }
+
+    // Let the browser add the multipart boundary for FormData uploads.
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      config.headers.delete('Content-Type');
     }
 
     const token = tokenStorage.getAccessToken();

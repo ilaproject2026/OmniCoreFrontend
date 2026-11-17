@@ -2,12 +2,12 @@ import { apiClient, tenantStorage } from './client';
 import { Driver } from '../types';
 
 // Django Backend Driver Status Translators
-export const mapDriverStatusToBackend = (status?: string): 'AVAILABLE' | 'ONTRIP' | 'ONLEAVE' | 'RESTING' | 'SUSPENDED' | 'INACTIVE' => {
+export const mapDriverStatusToBackend = (status?: string): 'AVAILABLE' | 'ON_TRIP' | 'ON_LEAVE' | 'RESTING' | 'SUSPENDED' | 'INACTIVE' => {
   if (!status) return 'AVAILABLE';
   const s = status.toUpperCase().replace(/[\s_-]/g, '');
   if (s === 'AVAILABLE' || s === 'ONDUTY') return 'AVAILABLE';
-  if (s === 'ONTRIP') return 'ONTRIP';
-  if (s === 'ONLEAVE' || s === 'LEAVE') return 'ONLEAVE';
+  if (s === 'ONTRIP') return 'ON_TRIP';
+  if (s === 'ONLEAVE' || s === 'LEAVE') return 'ON_LEAVE';
   if (s === 'RESTING' || s === 'OFFDUTY') return 'RESTING';
   if (s === 'SUSPENDED') return 'SUSPENDED';
   if (s === 'INACTIVE') return 'INACTIVE';
@@ -34,27 +34,89 @@ export const toBackendDriverPayload = (payload: Partial<Driver>): Record<string,
   const statusBackend = mapDriverStatusToBackend(payload.status);
 
   return {
-    ...payload,
-    // DRF Serializer snake_case compatibility fields
     first_name: fName,
     last_name: lName,
     license_number: licNum,
     license_expiry: licExpiry,
-    license_expiry_date: licExpiry,
     license_type: licType,
     status: statusBackend,
     phone: payload.phone || '',
     email: payload.email || '',
     address: payload.address || '',
-    experience_years: payload.experienceYears ?? (payload as any).experience_years ?? 0,
-
-    // Frontend camelCase compatibility fields
-    firstName: fName,
-    lastName: lName,
-    licenseNumber: licNum,
-    licenseExpiryDate: licExpiry,
-    licenseType: licType,
+    experience_years: payload.experienceYears ?? 0,
+    safety_score: payload.safetyScore ?? 95,
   };
+};
+
+export const toBackendDriverPatchPayload = (payload: Partial<Driver>): Record<string, any> => {
+  const patch: Record<string, any> = {};
+  const has = (...keys: string[]) => keys.some((key) => Object.prototype.hasOwnProperty.call(payload, key));
+
+  if (has('first_name', 'firstName')) patch.first_name = payload.first_name ?? payload.firstName;
+  if (has('last_name', 'lastName')) patch.last_name = payload.last_name ?? payload.lastName;
+  if (has('license_number', 'licenseNumber')) patch.license_number = payload.license_number ?? payload.licenseNumber;
+  if (has('license_expiry', 'licenseExpiryDate')) patch.license_expiry = payload.license_expiry ?? payload.licenseExpiryDate;
+  if (has('license_type', 'licenseType')) patch.license_type = payload.license_type ?? payload.licenseType;
+  if (has('phone')) patch.phone = payload.phone;
+  if (has('email')) patch.email = payload.email;
+  if (has('address')) patch.address = payload.address;
+  if (has('experienceYears', 'experience_years')) patch.experience_years = payload.experienceYears ?? (payload as any).experience_years;
+  if (has('safetyScore', 'safety_score')) patch.safety_score = payload.safetyScore ?? (payload as any).safety_score;
+  if (has('status')) patch.status = mapDriverStatusToBackend(payload.status);
+
+  // Fleet assignment callers use assignedVehicleId; the API serializer stores the FK as current_vehicle.
+  // Preserve explicit undefined as null so an existing vehicle binding can be cleared.
+  if (has('assignedVehicleId', 'current_vehicle')) {
+    patch.current_vehicle = payload.assignedVehicleId ?? (payload as any).current_vehicle ?? null;
+  }
+
+  return patch;
+};
+
+const formatDriverValidationError = (error: any): Error => {
+  const body = error?.response?.data || error?.errors || {};
+  const structured = body?.error || {};
+  const fields = structured?.fields || body?.fields || (body?.success === false ? {} : body);
+  const details = Object.entries(fields).flatMap(([field, value]) => {
+    const messages = Array.isArray(value) ? value : [value];
+    return messages.map((message) => `${field}: ${typeof message === 'string' ? message : JSON.stringify(message)}`);
+  });
+  const message = structured?.message || body?.message || error?.message || 'Driver registration failed.';
+  const formatted = new Error(details.length ? `${message} (${details.join(' | ')})` : message);
+  (formatted as any).driverCreated = error?.driverCreated;
+  return formatted;
+};
+
+type DriverDocumentReplacement = { id: string; file: File; name: string; type: string };
+
+const uploadDriverAttachments = async (
+  driverId: string,
+  imageFile?: File,
+  documentFiles: Array<{ file: File; name: string }> = [],
+  replacements: DriverDocumentReplacement[] = [],
+): Promise<void> => {
+  if (imageFile) {
+    const imageData = new FormData();
+    imageData.append('image', imageFile);
+    await apiClient.patch(`/drivers/${driverId}/`, imageData);
+  }
+  for (const document of documentFiles) {
+    const documentData = new FormData();
+    documentData.append('driver', driverId);
+    documentData.append('document_type', document.name.toUpperCase().replace(/[^A-Z0-9]+/g, '_'));
+    documentData.append('document_name', document.name);
+    documentData.append('document_number', document.file.name);
+    documentData.append('file', document.file);
+    await apiClient.post('/drivers/documents/', documentData);
+  }
+  for (const replacement of replacements) {
+    const documentData = new FormData();
+    documentData.append('file', replacement.file);
+    documentData.append('document_name', replacement.name);
+    documentData.append('document_type', replacement.type);
+    documentData.append('document_number', replacement.file.name);
+    await apiClient.patch(`/drivers/documents/${replacement.id}/`, documentData);
+  }
 };
 
 export const normalizeDriverResponse = (data: any): Driver => {
@@ -81,6 +143,8 @@ export const normalizeDriverResponse = (data: any): Driver => {
     phone: data.phone || '',
     email: data.email || '',
     address: data.address || '',
+    assignedVehicleId: data.current_vehicle || data.assignedVehicleId,
+    assignedVehicleReg: data.current_vehicle_reg || data.assignedVehicleReg,
     experienceYears: data.experience_years ?? data.experienceYears ?? 0,
     status: mapDriverStatusToFrontend(data.status),
     safetyScore: data.safety_score ?? data.safetyScore ?? 95,
@@ -88,7 +152,16 @@ export const normalizeDriverResponse = (data: any): Driver => {
     onTimeDeliveryRate: data.on_time_delivery_rate ?? data.onTimeDeliveryRate ?? 100,
     joinedDate: data.joined_date || data.joinedDate || new Date().toISOString().split('T')[0],
     incidentCount: data.incident_count ?? data.incidentCount ?? 0,
-    documents: data.documents || [],
+    documents: (data.documents || []).map((document: any) => ({
+      ...document,
+      documentName: document.document_name || document.documentName || document.document_type || document.type || 'Document',
+      type: document.document_type || document.type,
+      documentNumber: document.document_number || document.documentNumber || '',
+      fileUrl: document.file_url || document.file || document.file_path || '',
+      issueDate: document.issue_date || document.issueDate || '',
+      expiryDate: document.expiry_date || document.expiryDate || '',
+    })),
+    avatar: data.avatar || data.image || undefined,
   };
 };
 
@@ -127,47 +200,63 @@ export const driversApi = {
     return normalizeDriverResponse(response.data);
   },
 
-  createDriver: async (payload: Partial<Driver>): Promise<Driver> => {
+  createDriver: async (payload: Partial<Driver> & { imageFile?: File; documentFiles?: Array<{ file: File; name: string }> }): Promise<Driver> => {
     const backendData = toBackendDriverPayload(payload);
     try {
       const response = await apiClient.post<any>('/drivers/', backendData);
-      return normalizeDriverResponse(response.data);
+      const createdDriver = normalizeDriverResponse(response.data);
+      try {
+        await uploadDriverAttachments(createdDriver.id, payload.imageFile, payload.documentFiles);
+      } catch (attachmentError) {
+        (attachmentError as any).driverCreated = createdDriver;
+        throw attachmentError;
+      }
+      return payload.imageFile || payload.documentFiles?.length
+        ? normalizeDriverResponse((await apiClient.get(`/drivers/${createdDriver.id}/`)).data)
+        : createdDriver;
     } catch (err: any) {
       if (err?.status === 400 || err?.response?.status === 400 || err?.errors || err?.code === 'VALIDATION_ERROR') {
-        const backendMessage =
-          err?.response?.data?.error?.message ||
-          err?.response?.data?.message ||
-          err?.message ||
-          'Validation failed for one or more fields.';
-        const fieldErrors = err?.response?.data?.error?.fields || err?.response?.data?.fields || err?.errors;
-        const firstFieldMsg = fieldErrors ? Object.entries(fieldErrors).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join(' | ') : '';
-        const errorToThrow = new Error(firstFieldMsg ? `${backendMessage} (${firstFieldMsg})` : backendMessage);
-        (errorToThrow as any).fields = fieldErrors;
-        throw errorToThrow;
+        throw formatDriverValidationError(err);
       }
       throw err;
     }
   },
 
-  updateDriver: async (id: string, payload: Partial<Driver>): Promise<Driver> => {
-    const backendData = toBackendDriverPayload(payload);
+  updateDriver: async (id: string, payload: Partial<Driver> & { imageFile?: File; documentFiles?: Array<{ file: File; name: string }> }): Promise<Driver> => {
+    const backendData = toBackendDriverPatchPayload(payload);
     try {
       const response = await apiClient.patch<any>(`/drivers/${id}/`, backendData);
+      await uploadDriverAttachments(id, payload.imageFile, payload.documentFiles);
+      if (payload.imageFile || payload.documentFiles?.length) {
+        return normalizeDriverResponse((await apiClient.get(`/drivers/${id}/`)).data);
+      }
       return normalizeDriverResponse(response.data);
     } catch (err: any) {
       if (err?.status === 400 || err?.response?.status === 400 || err?.errors || err?.code === 'VALIDATION_ERROR') {
-        const backendMessage =
-          err?.response?.data?.error?.message ||
-          err?.response?.data?.message ||
-          err?.message ||
-          'Validation failed for one or more fields.';
-        const fieldErrors = err?.response?.data?.error?.fields || err?.response?.data?.fields || err?.errors;
-        const firstFieldMsg = fieldErrors ? Object.entries(fieldErrors).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join(' | ') : '';
-        const errorToThrow = new Error(firstFieldMsg ? `${backendMessage} (${firstFieldMsg})` : backendMessage);
-        (errorToThrow as any).fields = fieldErrors;
-        throw errorToThrow;
+        throw formatDriverValidationError(err);
       }
       throw err;
     }
+  },
+
+  updateDriverAttachments: async (
+    id: string,
+    imageFile?: File,
+    documentFiles: Array<{ file: File; name: string }> = [],
+    replacements: DriverDocumentReplacement[] = [],
+  ): Promise<Driver> => {
+    try {
+      await uploadDriverAttachments(id, imageFile, documentFiles, replacements);
+      return normalizeDriverResponse((await apiClient.get<any>(`/drivers/${id}/`)).data);
+    } catch (err: any) {
+      if (err?.status === 400 || err?.response?.status === 400 || err?.errors || err?.code === 'VALIDATION_ERROR') {
+        throw formatDriverValidationError(err);
+      }
+      throw err;
+    }
+  },
+
+  deleteDriver: async (id: string): Promise<void> => {
+    await apiClient.delete(`/drivers/${id}/`);
   },
 };
