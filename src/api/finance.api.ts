@@ -16,8 +16,21 @@ export interface FinanceSummary {
 
 export const financeApi = {
   getSummary: async (): Promise<FinanceSummary> => {
-    const response = await apiClient.get<FinanceSummary>('/finance/summary/');
-    return response.data;
+    const response = await apiClient.get<any>('/finance/pnl/');
+    const data = response.data || {};
+    const expenses = data.expenses || {};
+    return {
+      totalRevenue: Number(data.total_billed_revenue || 0),
+      totalCollections: Number(data.total_collections_cash || 0),
+      outstandingBalance: Number(data.outstanding_receivables || 0),
+      fuelExpenses: Number(expenses.fuel || 0),
+      tollExpenses: Number(expenses.tolls || 0),
+      maintenanceExpenses: 0,
+      payrollExpenses: 0,
+      totalOperatingExpenses: Number(expenses.total_expenses || 0),
+      netMargin: Number(data.net_operating_profit || 0),
+      monthlyRevenueSeries: [],
+    };
   },
 
   getInvoices: async (): Promise<Invoice[]> => {

@@ -1,12 +1,15 @@
 import React from 'react';
-import { Outlet, Link } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Truck, ShieldCheck, Zap, Globe } from 'lucide-react';
 
 export const AuthLayout: React.FC = () => {
+  const { pathname } = useLocation();
+  const isRegistrationPage = pathname.endsWith('/register');
+
   return (
     <div className="flex min-h-screen w-full bg-[#0b0f17] text-slate-100">
       {/* Left Branding Showcase Panel */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 bg-gradient-to-br from-[#101726] via-[#0f172a] to-[#090d15] border-r border-slate-800/80 relative overflow-hidden">
+      {!isRegistrationPage && <div className="hidden lg:flex lg:w-[40%] flex-col justify-between p-10 xl:p-12 bg-gradient-to-br from-[#101726] via-[#0f172a] to-[#090d15] border-r border-slate-800/80 relative overflow-hidden">
         <div className="absolute top-0 right-0 -mr-20 -mt-20 h-96 w-96 rounded-full bg-blue-600/10 blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 -ml-20 -mb-20 h-96 w-96 rounded-full bg-cyan-600/10 blur-3xl pointer-events-none" />
 
@@ -70,11 +73,11 @@ export const AuthLayout: React.FC = () => {
             <span className="hover:text-slate-400 cursor-pointer">Platform SLA</span>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Right Authentication Form Container */}
-      <div className="flex w-full lg:w-1/2 flex-col justify-center items-center p-4 sm:p-8 lg:p-10 relative overflow-y-auto">
-        <div className="w-full max-w-2xl py-6">
+      <div className={`flex w-full flex-col items-center p-4 sm:p-8 relative overflow-y-auto ${isRegistrationPage ? 'lg:px-12 xl:px-16' : 'lg:w-[60%] lg:p-10'}`}>
+        <div className={`w-full py-6 ${isRegistrationPage ? 'max-w-[1600px]' : 'max-w-6xl'}`}>
           <Outlet />
         </div>
       </div>
