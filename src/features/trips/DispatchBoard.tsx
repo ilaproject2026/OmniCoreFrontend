@@ -19,6 +19,8 @@ import {
   ShieldCheck,
   Phone,
   Info,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
 
@@ -45,7 +47,12 @@ const formatVehicleType = (type?: string) => {
   }
 };
 
-export const DispatchBoard: React.FC = () => {
+interface DispatchBoardProps {
+  onEditBooking?: (booking: Booking) => void;
+  onDeleteBooking?: (booking: Booking) => void;
+}
+
+export const DispatchBoard: React.FC<DispatchBoardProps> = ({ onEditBooking, onDeleteBooking }) => {
   const queryClient = useQueryClient();
   const { tenant } = useTenant();
 
@@ -180,9 +187,11 @@ export const DispatchBoard: React.FC = () => {
 
                     <div className="flex items-center justify-between pt-1 text-[10px]">
                       <span className="text-slate-400 font-medium">Req: {formatVehicleType(bkType)}</span>
-                      <Badge variant="purple" size="sm">
-                        {bk.vertical.replace('_', ' ')}
-                      </Badge>
+                      <div className="flex items-center gap-1">
+                        <Badge variant="purple" size="sm">{(bk.vertical || 'freight_logistics').replace('_', ' ')}</Badge>
+                        <Button size="icon" variant="ghost" title="Edit booking" aria-label={`Edit booking ${bk.bookingCode}`} onClick={(e) => { e.stopPropagation(); onEditBooking?.(bk); }}><Pencil className="h-3.5 w-3.5" /></Button>
+                        <Button size="icon" variant="ghost" title="Delete booking" aria-label={`Delete booking ${bk.bookingCode}`} className="text-rose-400 hover:text-rose-300" onClick={(e) => { e.stopPropagation(); onDeleteBooking?.(bk); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      </div>
                     </div>
                   </div>
                 );

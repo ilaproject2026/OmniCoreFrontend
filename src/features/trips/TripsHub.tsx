@@ -20,6 +20,8 @@ import {
   Navigation,
   Plus,
   Eye,
+  Pencil,
+  Trash2,
   CheckCircle2,
   Truck,
   AlertTriangle,
@@ -60,6 +62,7 @@ export const TripsHub: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'trips' | 'bookings' | 'dispatch'>('trips');
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [isNewBookingModalOpen, setIsNewBookingModalOpen] = useState(false);
+  const [bookingBeingEdited, setBookingBeingEdited] = useState<Booking | null>(null);
   const [bookingToAssign, setBookingToAssign] = useState<Booking | null>(null);
   const [assignModalVehicleId, setAssignModalVehicleId] = useState<string>('');
 
@@ -137,6 +140,7 @@ export const TripsHub: React.FC = () => {
     mutationFn: (data: typeof newBooking) => tripsApi.createBooking(data),
     onSuccess: (createdBooking) => {
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      setActiveTab('bookings');
       setIsNewBookingModalOpen(false);
       setNewBooking({
         customerName: '',
@@ -157,6 +161,50 @@ export const TripsHub: React.FC = () => {
       }
     },
   });
+
+  const updateBookingMutation = useMutation({
+    mutationFn: (data: typeof newBooking) => {
+      if (!bookingBeingEdited) throw new Error('Select a booking to edit.');
+      return tripsApi.updateBooking(bookingBeingEdited.id, data);
+    },
+    onSuccess: (updatedBooking) => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      setBookingBeingEdited(null);
+      setIsNewBookingModalOpen(false);
+      if (bookingToAssign?.id === updatedBooking.id) setBookingToAssign(updatedBooking);
+    },
+  });
+
+  const deleteBookingMutation = useMutation({
+    mutationFn: (booking: Booking) => tripsApi.deleteBooking(booking.id),
+    onSuccess: (_, booking) => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      if (bookingToAssign?.id === booking.id) setBookingToAssign(null);
+    },
+  });
+
+  const openBookingEditor = (booking: Booking) => {
+    setBookingBeingEdited(booking);
+    setNewBooking({
+      customerName: booking.customerName || '',
+      customerPhone: booking.customerPhone || '',
+      pickupLocation: booking.pickupLocation || '',
+      dropoffLocation: booking.dropoffLocation || '',
+      vertical: booking.vertical || 'freight_logistics',
+      vehicleType: booking.vehicleType || 'heavy_truck',
+      cargoDescription: booking.cargoDescription || '',
+      estimatedAmount: booking.estimatedAmount || 0,
+      customerId: booking.customerId || '',
+      contractId: booking.contractId || '',
+    });
+    setIsNewBookingModalOpen(true);
+  };
+
+  const confirmDeleteBooking = (booking: Booking) => {
+    if (window.confirm(`Delete booking ${booking.bookingCode} for ${booking.customerName}?`)) {
+      deleteBookingMutation.mutate(booking);
+    }
+  };
 
   // Calculate matching vehicles for the assignment modal
   const requiredModalType: VehicleType = bookingToAssign?.vehicleType || (
@@ -372,28 +420,20 @@ export const TripsHub: React.FC = () => {
     },
     {
       key: 'actions',
-      header: 'Dispatch Action',
+      header: 'Actions',
       render: (_, row) => {
-        if (row.status === 'dispatched') {
-          return (
-            <Badge variant="purple" size="sm">
-              <CheckCircle2 className="h-3 w-3 mr-1" />
-              On Trip
-            </Badge>
-          );
-        }
         return (
-          <Button
-            size="sm"
-            variant="primary"
-            leftIcon={<Truck className="h-3.5 w-3.5" />}
-            onClick={(e) => {
-              e.stopPropagation();
-              setBookingToAssign(row);
-            }}
-          >
-            Assign Vehicle
-          </Button>
+          <div className="flex items-center gap-1.5">
+            {row.status === 'dispatched' ? (
+              <Badge variant="purple" size="sm"><CheckCircle2 className="h-3 w-3 mr-1" />On Trip</Badge>
+            ) : (
+              <Button size="sm" variant="primary" leftIcon={<Truck className="h-3.5 w-3.5" />} onClick={(e) => { e.stopPropagation(); setBookingToAssign(row); }}>
+                Assign
+              </Button>
+            )}
+            <Button size="icon" variant="ghost" title="Edit booking" aria-label={`Edit booking ${row.bookingCode}`} onClick={(e) => { e.stopPropagation(); openBookingEditor(row); }}><Pencil className="h-4 w-4" /></Button>
+            <Button size="icon" variant="ghost" title="Delete booking" aria-label={`Delete booking ${row.bookingCode}`} className="text-rose-400 hover:text-rose-300" onClick={(e) => { e.stopPropagation(); confirmDeleteBooking(row); }} disabled={deleteBookingMutation.isPending}><Trash2 className="h-4 w-4" /></Button>
+          </div>
         );
       },
     },
@@ -415,7 +455,7 @@ export const TripsHub: React.FC = () => {
             size="sm"
             variant="primary"
             leftIcon={<Plus className="h-4 w-4" />}
-            onClick={() => setIsNewBookingModalOpen(true)}
+            onClick={() => { setBookingBeingEdited(null); setIsNewBookingModalOpen(true); }}
           >
             Create Customer Booking
           </Button>
@@ -456,7 +496,7 @@ export const TripsHub: React.FC = () => {
       )}
 
       {/* Tab 3: Dispatch Board */}
-      {activeTab === 'dispatch' && <DispatchBoard />}
+      {activeTab === 'dispatch' && <DispatchBoard onEditBooking={openBookingEditor} onDeleteBooking={confirmDeleteBooking} />}
 
       {/* Trip Details Drawer */}
       <TripDetailsDrawer
@@ -658,18 +698,24 @@ export const TripsHub: React.FC = () => {
       {/* New Booking Modal */}
       <Modal
         isOpen={isNewBookingModalOpen}
-        onClose={() => setIsNewBookingModalOpen(false)}
-        title="Create Customer Booking"
+        onClose={() => { setIsNewBookingModalOpen(false); setBookingBeingEdited(null); }}
+        title={bookingBeingEdited ? `Edit Booking • ${bookingBeingEdited.bookingCode}` : 'Create Customer Booking'}
         description="Record an inbound transport or linehaul request and link to CRM accounts or active contracts."
         size="lg"
       >
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            createBookingMutation.mutate(newBooking);
+            if (bookingBeingEdited) updateBookingMutation.mutate(newBooking);
+            else createBookingMutation.mutate(newBooking);
           }}
           className="space-y-4"
         >
+          {(createBookingMutation.isError || updateBookingMutation.isError) && (
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300" role="alert">
+              {((bookingBeingEdited ? updateBookingMutation.error : createBookingMutation.error) as Error)?.message || 'Booking could not be saved.'}
+            </div>
+          )}
           {/* CRM Quick Picker */}
           <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -807,11 +853,11 @@ export const TripsHub: React.FC = () => {
           </div>
 
           <div className="mt-6 pt-4 border-t border-slate-800 flex justify-end gap-3">
-            <Button variant="outline" size="sm" type="button" onClick={() => setIsNewBookingModalOpen(false)}>
+            <Button variant="outline" size="sm" type="button" onClick={() => { setIsNewBookingModalOpen(false); setBookingBeingEdited(null); }}>
               Cancel
             </Button>
-            <Button variant="primary" size="sm" type="submit" isLoading={createBookingMutation.isPending}>
-              Create Booking
+            <Button variant="primary" size="sm" type="submit" isLoading={createBookingMutation.isPending || updateBookingMutation.isPending}>
+              {bookingBeingEdited ? 'Save Changes' : 'Create Booking'}
             </Button>
           </div>
         </form>
