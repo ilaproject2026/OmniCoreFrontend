@@ -55,8 +55,8 @@ export const shuttleApi = {
   },
 
   getRouteById: async (id: string): Promise<ShuttleRoute | null> => {
-    const response = await apiClient.get(`/shuttle/routes/${id}/`);
-    return response.data;
+    const response = await apiClient.get<any>(`/shuttle/routes/${id}/`);
+    return normalizeRoute(response.data);
   },
 
   createRoute: async (data: { organizationId: string; routeCode: string; name: string; startLocation: string; endLocation: string; direction: string }): Promise<ShuttleRoute> => {
