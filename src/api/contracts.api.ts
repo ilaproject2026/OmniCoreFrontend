@@ -32,7 +32,7 @@ const normalizeContract = (raw: any): Contract => ({
   startDate: raw.start_date || '', endDate: raw.end_date || '',
   totalContractValue: Number(raw.total_contract_value || 0), realizedRevenue: 0,
   dedicatedVehiclesCount: (raw.allocations || []).reduce((sum: number, item: any) => sum + Number(item.committed_vehicles || 0), 0),
-  minMonthlyTrips: 0, status: ({ DRAFT: 'draft', PENDING_APPROVAL: 'draft', ACTIVE: 'active', RENEWAL_DUE: 'expiring_soon', EXPIRED: 'completed', TERMINATED: 'terminated' } as Record<string, Contract['status']>)[raw.status] || 'draft',
+  minMonthlyTrips: 0, status: ({ DRAFT: 'draft', PENDING_APPROVAL: 'pending_approval', ACTIVE: 'active', RENEWAL_DUE: 'expiring_soon', EXPIRED: 'completed', TERMINATED: 'terminated' } as Record<string, Contract['status']>)[raw.status] || 'draft',
   slaTargetPercent: 0, slaActualPercent: 0, paymentTerms: `Net ${raw.payment_terms_days ?? 30} Days`,
   paymentTermsDays: Number(raw.payment_terms_days ?? 30), renewalAlertDays: 0,
   billingCycle: undefined, routes: [],
@@ -112,9 +112,18 @@ export const contractsApi = {
     }
   },
 
-  awardTenderToContract: async (tenderId: string): Promise<{ tender: Tender; contract: Contract }> => {
-    const response = await apiClient.post<{ tender: Tender; contract: Contract }>(`/contracts/tenders/${tenderId}/award/`);
-    return response.data;
+  awardTenderToContract: async (tenderId: string, payload: { customerId: string; startDate: string; endDate: string; totalContractValue: number; minimumMonthlyCommitment?: number; paymentTermsDays?: number }): Promise<{ tender: Tender; contract: Contract }> => {
+    try {
+      const response = await apiClient.post<any>(`/contracts/tenders/${tenderId}/award/`, {
+        customer: payload.customerId, start_date: payload.startDate, end_date: payload.endDate,
+        total_contract_value: payload.totalContractValue,
+        minimum_monthly_commitment: payload.minimumMonthlyCommitment ?? 0,
+        payment_terms_days: payload.paymentTermsDays ?? 30,
+      });
+      return { tender: normalizeTender(response.data.tender), contract: normalizeContract(response.data.contract) };
+    } catch (error) {
+      throw new Error(errorMessage(error));
+    }
   },
 
   getContractProfitability: async (contractId: string): Promise<ContractProfitability> => {

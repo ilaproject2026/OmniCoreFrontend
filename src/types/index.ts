@@ -419,7 +419,7 @@ export interface Trip {
 
 // ----------------- Contracts & Tenders -----------------
 export type TenderStatus = 'draft' | 'open' | 'under_review' | 'submitted' | 'shortlisted' | 'won' | 'lost' | 'awarded';
-export type ContractStatus = 'draft' | 'active' | 'expiring_soon' | 'renewed' | 'terminated' | 'completed';
+export type ContractStatus = 'draft' | 'pending_approval' | 'active' | 'expiring_soon' | 'renewed' | 'terminated' | 'completed';
 
 export interface Tender {
   id: string;
