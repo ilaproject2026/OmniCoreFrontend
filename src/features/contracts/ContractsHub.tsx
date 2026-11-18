@@ -43,6 +43,7 @@ export const ContractsHub: React.FC = () => {
     title: '',
     clientName: '',
     industry: '',
+    submissionDeadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
     estimatedValue: 1200000,
     estimatedVehicleRequired: 6,
     fleetCosts: 450000,
@@ -57,10 +58,7 @@ export const ContractsHub: React.FC = () => {
     customerName: '',
     customerId: '',
     totalContractValue: 500000,
-    slaTargetPercent: 98,
-    minMonthlyTrips: 40,
-    dedicatedVehiclesCount: 4,
-    billingCycle: 'monthly' as const,
+    minimumMonthlyCommitment: 0,
     paymentTermsDays: 30,
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -94,7 +92,8 @@ export const ContractsHub: React.FC = () => {
         title: data.title,
         clientName: data.clientName,
         industry: data.industry,
-        estimatedValue: data.estimatedValue,
+        submissionDeadline: data.submissionDeadline,
+        estimatedValue: data.fleetCosts + data.fuelEstimates + data.crewPayroll + data.margins,
         estimatedVehicleRequired: data.estimatedVehicleRequired,
         costBreakdown: {
           fleetCosts: data.fleetCosts,
@@ -113,15 +112,10 @@ export const ContractsHub: React.FC = () => {
     mutationFn: (data: typeof newContractForm) =>
       contractsApi.createContract({
         title: data.title,
-        clientName: data.customerName,
         customerName: data.customerName,
-        customerId: data.customerId || undefined,
+        customerId: data.customerId,
         totalContractValue: data.totalContractValue,
-        slaTargetPercent: data.slaTargetPercent,
-        minMonthlyTrips: data.minMonthlyTrips,
-        dedicatedVehiclesCount: data.dedicatedVehiclesCount,
-        billingCycle: data.billingCycle,
-        paymentTerms: `Net ${data.paymentTermsDays} Days`,
+        minimumMonthlyCommitment: data.minimumMonthlyCommitment,
         paymentTermsDays: data.paymentTermsDays,
         startDate: data.startDate,
         endDate: data.endDate,
@@ -572,6 +566,7 @@ export const ContractsHub: React.FC = () => {
           }}
           className="space-y-4 text-xs"
         >
+          {createContractMutation.isError && <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">{(createContractMutation.error as Error)?.message || 'Could not create contract.'}</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Contract Agreement Title"
@@ -619,37 +614,16 @@ export const ContractsHub: React.FC = () => {
             />
 
             <Input
-              label="Target SLA Performance (%)"
+              label="Minimum Monthly Commitment ($)"
               type="number"
-              value={newContractForm.slaTargetPercent}
-              onChange={(e) => setNewContractForm({ ...newContractForm, slaTargetPercent: Number(e.target.value) })}
+              min="0"
+              value={newContractForm.minimumMonthlyCommitment}
+              onChange={(e) => setNewContractForm({ ...newContractForm, minimumMonthlyCommitment: Number(e.target.value) })}
             />
 
-            <Input
-              label="Dedicated Vehicles Assigned"
-              type="number"
-              value={newContractForm.dedicatedVehiclesCount}
-              onChange={(e) => setNewContractForm({ ...newContractForm, dedicatedVehiclesCount: Number(e.target.value) })}
-            />
-
-            <Input
-              label="Minimum Monthly Guaranteed Trips"
-              type="number"
-              value={newContractForm.minMonthlyTrips}
-              onChange={(e) => setNewContractForm({ ...newContractForm, minMonthlyTrips: Number(e.target.value) })}
-            />
-
-            <Select
-              label="Billing Cycle"
-              value={newContractForm.billingCycle}
-              onChange={(e) => setNewContractForm({ ...newContractForm, billingCycle: e.target.value as any })}
-              options={[
-                { value: 'monthly', label: 'Monthly Invoicing' },
-                { value: 'biweekly', label: 'Bi-Weekly Invoicing' },
-                { value: 'quarterly', label: 'Quarterly Invoicing' },
-                { value: 'per_trip', label: 'Per-Trip Settlement' },
-              ]}
-            />
+            <Input label="Payment Terms (Days)" type="number" min="0" required value={newContractForm.paymentTermsDays} onChange={(e) => setNewContractForm({ ...newContractForm, paymentTermsDays: Number(e.target.value) })} />
+            <Input label="Contract Start Date" type="date" required value={newContractForm.startDate} onChange={(e) => setNewContractForm({ ...newContractForm, startDate: e.target.value })} />
+            <Input label="Contract End Date" type="date" required value={newContractForm.endDate} onChange={(e) => setNewContractForm({ ...newContractForm, endDate: e.target.value })} />
           </div>
 
           <div className="mt-6 pt-4 border-t border-slate-800 flex justify-end gap-3">
@@ -678,6 +652,7 @@ export const ContractsHub: React.FC = () => {
           }}
           className="space-y-4 text-xs"
         >
+          {tenderMutation.isError && <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">{(tenderMutation.error as Error)?.message || 'Could not create tender.'}</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Tender Project Title"
@@ -694,6 +669,8 @@ export const ContractsHub: React.FC = () => {
               value={newTender.clientName}
               onChange={(e) => setNewTender({ ...newTender, clientName: e.target.value })}
             />
+
+            <Input label="Submission Deadline" type="datetime-local" required value={newTender.submissionDeadline} onChange={(e) => setNewTender({ ...newTender, submissionDeadline: e.target.value })} />
 
             <Input
               label="Industry Classification"

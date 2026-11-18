@@ -418,7 +418,7 @@ export interface Trip {
 }
 
 // ----------------- Contracts & Tenders -----------------
-export type TenderStatus = 'draft' | 'under_review' | 'submitted' | 'shortlisted' | 'won' | 'lost' | 'awarded';
+export type TenderStatus = 'draft' | 'open' | 'under_review' | 'submitted' | 'shortlisted' | 'won' | 'lost' | 'awarded';
 export type ContractStatus = 'draft' | 'active' | 'expiring_soon' | 'renewed' | 'terminated' | 'completed';
 
 export interface Tender {
@@ -489,6 +489,7 @@ export interface Contract {
   startDate: string;
   endDate: string;
   totalContractValue: number;
+  minimumMonthlyCommitment?: number;
   realizedRevenue: number;
   dedicatedVehiclesCount: number;
   dedicatedVehicleIds?: string[];
@@ -498,6 +499,7 @@ export interface Contract {
   slaActualPercent: number;
   paymentTerms: string;
   paymentTermsDays?: number;
+  termsAndConditions?: string;
   billingCycle?: 'weekly' | 'biweekly' | 'monthly' | 'milestone' | 'per_trip' | 'quarterly';
   penalties?: string;
   securityDeposit?: number;
@@ -1197,13 +1199,31 @@ export interface ShuttlePassenger {
   name: string;
   employeeOrStudentId: string;
   type: 'employee' | 'student';
+  organizationId?: string;
+  organizationName?: string;
   assignedRouteId: string;
+  assignedRouteName?: string;
+  pickupStopId?: string;
   assignedStopName: string;
   contactPhone: string;
   emergencyContact: string;
   hasBoardedToday: boolean;
   boardingTimestamp?: string;
+  attendanceStatus?: 'BOARDED' | 'ALIGHTED' | 'ABSENT' | 'EXCUSED';
+  seatNumber?: string;
 }
+
+export interface ShuttleTrip {
+  id: string;
+  tripNumber: string;
+  routeId: string;
+  routeCode: string;
+  tripDate: string;
+  status: 'scheduled' | 'dispatched' | 'in_progress' | 'completed' | 'cancelled';
+  attendanceRecords: Array<{ id: string; passengerId: string; status: 'BOARDED' | 'ALIGHTED' | 'ABSENT' | 'EXCUSED'; timestamp: string; stopId?: string }>;
+}
+
+export type ShuttleAttendanceStatus = 'BOARDED' | 'ALIGHTED' | 'ABSENT' | 'EXCUSED';
 
 // ============================================================
 // WAREHOUSE EXTENSIONS: CROSS-DOCKING & CONSOLIDATION

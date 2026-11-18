@@ -161,8 +161,8 @@ export const AppRoutes: React.FC = () => {
               fallback={<PlanFeatureRestricted moduleName="Contracts & Tenders" requiredTier="standard" />}
             >
               <PermissionGuard
-                permission="contracts.view"
-                fallback={<RoleAccessRestricted moduleName="Contracts & Tenders" requiredPermission="contracts.view" />}
+                permission="contract.view"
+                fallback={<RoleAccessRestricted moduleName="Contracts & Tenders" requiredPermission="contract.view" />}
               >
                 <ContractsHub />
               </PermissionGuard>

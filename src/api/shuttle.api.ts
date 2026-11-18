@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { ShuttleOrganization, ShuttleRoute, ShuttleSchedule, ShuttlePassenger } from '../types';
+import { ShuttleOrganization, ShuttleRoute, ShuttleSchedule, ShuttlePassenger, ShuttleTrip, ShuttleAttendanceStatus } from '../types';
 
 const rowsFrom = (data: any): any[] => Array.isArray(data) ? data : data?.results || data?.data || [];
 const errorMessage = (error: any): string => {
@@ -55,6 +55,30 @@ const normalizeSchedule = (raw: any): ShuttleSchedule => ({
   capacityTotal: Number(raw.capacity_total || 0), status: raw.is_active ? 'scheduled' : 'cancelled',
 });
 
+const normalizePassenger = (raw: any, assignment: any, routes: ShuttleRoute[]): ShuttlePassenger => {
+  const pickupStopId = raw.pickup_stop || undefined;
+  const route = routes.find((candidate) => candidate.id === assignment?.shuttle_route);
+  const stop = route?.stops.find((candidate) => candidate.id === pickupStopId);
+  return {
+    id: raw.id, name: [raw.first_name, raw.last_name].filter(Boolean).join(' '),
+    employeeOrStudentId: raw.id_number || '', type: String(raw.passenger_type || 'EMPLOYEE').toUpperCase() === 'STUDENT' ? 'student' : 'employee',
+    organizationId: raw.organization || '', organizationName: raw.organization_name || '',
+    assignedRouteId: assignment?.shuttle_route || '', assignedRouteName: route?.name || assignment?.route_code || '',
+    pickupStopId, assignedStopName: stop?.name || '', contactPhone: raw.phone || '',
+    emergencyContact: [raw.emergency_contact_name, raw.emergency_contact_phone].filter(Boolean).join(' · '),
+    hasBoardedToday: false, seatNumber: assignment?.seat_number || '',
+  };
+};
+
+const normalizeTrip = (raw: any): ShuttleTrip => ({
+  id: raw.id, tripNumber: raw.trip_number || '', routeId: raw.shuttle_route || '', routeCode: raw.route_code || '',
+  tripDate: raw.trip_date || '', status: String(raw.status || 'SCHEDULED').toLowerCase() as ShuttleTrip['status'],
+  attendanceRecords: (raw.attendance_records || []).map((item: any) => ({
+    id: item.id, passengerId: item.passenger, status: item.status,
+    timestamp: item.timestamp || '', stopId: item.shuttle_stop || undefined,
+  })),
+});
+
 export const shuttleApi = {
   getOrganizations: async (): Promise<ShuttleOrganization[]> =>
     (await getAllRows('/shuttle/organizations/')).map(normalizeOrganization),
@@ -104,6 +128,44 @@ export const shuttleApi = {
     }
   },
 
+  generateTripForSchedule: async (scheduleId: string, tripDate: string): Promise<ShuttleTrip> => {
+    const response = await apiClient.post<any>(`/shuttle/schedules/${scheduleId}/generate-trip/`, { trip_date: tripDate });
+    return normalizeTrip(response.data);
+  },
+
+  getTrips: async (): Promise<ShuttleTrip[]> =>
+    (await getAllRows('/shuttle/trips/')).map(normalizeTrip),
+
+  createPassengerEnrollment: async (data: {
+    organizationId: string; routeId: string; passengerType: 'EMPLOYEE' | 'STUDENT';
+    firstName: string; lastName: string; idNumber: string; email?: string; phone: string;
+    emergencyContactName?: string; emergencyContactPhone?: string; pickupStopId?: string;
+    effectiveFrom: string; seatNumber?: string;
+  }): Promise<ShuttlePassenger> => {
+    try {
+      const response = await apiClient.post<any>('/shuttle/passengers/enroll/', {
+        organization: data.organizationId, shuttle_route: data.routeId, passenger_type: data.passengerType,
+        first_name: data.firstName.trim(), last_name: data.lastName.trim(), id_number: data.idNumber.trim(),
+        email: data.email || '', phone: data.phone.trim(), emergency_contact_name: data.emergencyContactName || '',
+        emergency_contact_phone: data.emergencyContactPhone || '', pickup_stop: data.pickupStopId || null,
+        effective_from: data.effectiveFrom, seat_number: data.seatNumber || '',
+      });
+      return normalizePassenger(response.data.passenger, response.data.assignment, await shuttleApi.getRoutes());
+    } catch (error) {
+      throw new Error(errorMessage(error));
+    }
+  },
+
+  recordTripAttendance: async (tripId: string, passengerId: string, attendanceStatus: ShuttleAttendanceStatus, stopId?: string): Promise<void> => {
+    try {
+      await apiClient.post(`/shuttle/trips/${tripId}/attendance/`, {
+        passenger_id: passengerId, status: attendanceStatus, ...(stopId ? { stop_id: stopId } : {}),
+      });
+    } catch (error) {
+      throw new Error(errorMessage(error));
+    }
+  },
+
   updateScheduleStatus: async (
     id: string,
     status: ShuttleSchedule['status']
@@ -113,15 +175,12 @@ export const shuttleApi = {
   },
 
   getPassengers: async (routeId?: string): Promise<ShuttlePassenger[]> => {
-    const response = await apiClient.get('/shuttle/passengers/', { params: { routeId } });
-    return response.data;
-  },
-
-  markPassengerBoarded: async (
-    passengerId: string,
-    hasBoarded: boolean
-  ): Promise<ShuttlePassenger> => {
-    const response = await apiClient.post(`/shuttle/passengers/${passengerId}/board/`, { hasBoarded });
-    return response.data;
+    const [rawPassengers, assignments, routes] = await Promise.all([
+      getAllRows('/shuttle/passengers/'), getAllRows('/shuttle/assignments/'), shuttleApi.getRoutes(),
+    ]);
+    return rawPassengers.map((raw: any) => {
+      const assignment = assignments.find((item: any) => item.passenger === raw.id && item.is_active);
+      return normalizePassenger(raw, assignment, routes);
+    }).filter((passenger) => !routeId || passenger.assignedRouteId === routeId);
   },
 };

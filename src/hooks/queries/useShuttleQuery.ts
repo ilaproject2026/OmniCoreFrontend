@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from './queryKeys';
 import { shuttleApi } from '../../api/shuttle.api';
-import { ShuttleOrganization, ShuttleRoute, ShuttleSchedule } from '../../types';
+import { ShuttleAttendanceStatus, ShuttleOrganization, ShuttleRoute, ShuttleSchedule } from '../../types';
 
 // ==================== QUERIES ====================
 
@@ -36,6 +36,10 @@ export function useShuttlePassengers(routeId?: string) {
   });
 }
 
+export function useShuttleTrips(date?: string) {
+  return useQuery({ queryKey: queryKeys.shuttle.trips(date), queryFn: () => shuttleApi.getTrips() });
+}
+
 // ==================== MUTATIONS ====================
 
 export function useCreateShuttleRouteMutation() {
@@ -68,6 +72,22 @@ export function useCreateShuttleScheduleMutation() {
   });
 }
 
+export function useCreatePassengerEnrollmentMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof shuttleApi.createPassengerEnrollment>[0]) => shuttleApi.createPassengerEnrollment(payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shuttle', 'passengers'] }),
+  });
+}
+
+export function useGenerateShuttleTripMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ scheduleId, tripDate }: { scheduleId: string; tripDate: string }) => shuttleApi.generateTripForSchedule(scheduleId, tripDate),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.shuttle.trips() }),
+  });
+}
+
 export function useUpdateScheduleStatusMutation() {
   const queryClient = useQueryClient();
 
@@ -85,17 +105,21 @@ export function useRecordAttendanceMutation() {
 
   return useMutation({
     mutationFn: ({
+      tripId,
       passengerId,
       status,
+      stopId,
     }: {
       scheduleId?: string;
+      tripId: string;
       passengerId: string;
       status: 'boarded' | 'missed' | 'excused' | 'dropped_off';
       stopId?: string;
-    }) => shuttleApi.markPassengerBoarded(passengerId, status === 'boarded'),
+    }) => shuttleApi.recordTripAttendance(tripId, passengerId, ({ boarded: 'BOARDED', missed: 'ABSENT', excused: 'EXCUSED', dropped_off: 'ALIGHTED' } as const)[status], stopId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.shuttle.schedules() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.shuttle.passengers() });
+      queryClient.invalidateQueries({ queryKey: ['shuttle', 'passengers'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.shuttle.trips() });
     },
   });
 }
@@ -105,14 +129,19 @@ export function useMarkPassengerBoardedMutation() {
 
   return useMutation({
     mutationFn: ({
+      tripId,
       passengerId,
-      hasBoarded,
+      status,
+      stopId,
     }: {
+      tripId: string;
       passengerId: string;
-      hasBoarded: boolean;
-    }) => shuttleApi.markPassengerBoarded(passengerId, hasBoarded),
+      status: ShuttleAttendanceStatus;
+      stopId?: string;
+    }) => shuttleApi.recordTripAttendance(tripId, passengerId, status, stopId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.shuttle.passengers() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.shuttle.trips() });
+      queryClient.invalidateQueries({ queryKey: ['shuttle', 'passengers'] });
     },
   });
 }

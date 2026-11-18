@@ -148,10 +148,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       path: '/app/contracts',
       icon: FileText,
       moduleKey: 'contracts',
-      isAccessible: can('contracts.view'),
+      isAccessible: can('contract.view'),
       isPlanAllowed: isModuleAllowedByPlan('contracts'),
       requiredTier: getRequiredTierForModule('contracts'),
-      requiredPermission: 'contracts.view',
+      requiredPermission: 'contract.view',
     },
     {
       label: 'Workshop & Maintenance',

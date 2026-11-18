@@ -33,9 +33,12 @@ import {
   useShuttleOrganizations,
   useShuttleSchedules,
   useShuttlePassengers,
+  useShuttleTrips,
   useCreateShuttleRouteMutation,
   useCreateShuttleOrganizationMutation,
   useCreateShuttleScheduleMutation,
+  useCreatePassengerEnrollmentMutation,
+  useGenerateShuttleTripMutation,
   useUpdateScheduleStatusMutation,
   useMarkPassengerBoardedMutation,
 } from '../../hooks/queries';
@@ -74,10 +77,14 @@ export const ShuttleDashboard: React.FC = () => {
     refetch: refetchPassengers,
   } = useShuttlePassengers();
 
+  const { data: shuttleTrips = [], isLoading: isLoadingTrips } = useShuttleTrips();
+
   // TanStack Mutations
   const createRouteMutation = useCreateShuttleRouteMutation();
   const createOrganizationMutation = useCreateShuttleOrganizationMutation();
   const createScheduleMutation = useCreateShuttleScheduleMutation();
+  const createPassengerMutation = useCreatePassengerEnrollmentMutation();
+  const generateTripMutation = useGenerateShuttleTripMutation();
   const updateScheduleStatusMutation = useUpdateScheduleStatusMutation();
   const markBoardedMutation = useMarkPassengerBoardedMutation();
 
@@ -87,6 +94,7 @@ export const ShuttleDashboard: React.FC = () => {
   const [isNewRouteModalOpen, setIsNewRouteModalOpen] = useState(false);
   const [isNewOrganizationModalOpen, setIsNewOrganizationModalOpen] = useState(false);
   const [isNewScheduleModalOpen, setIsNewScheduleModalOpen] = useState(false);
+  const [isNewPassengerModalOpen, setIsNewPassengerModalOpen] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<ShuttleRoute | null>(null);
 
   // Form states
@@ -106,14 +114,34 @@ export const ShuttleDashboard: React.FC = () => {
     departureTime: '07:30',
     arrivalTime: '08:15',
   });
+  const [newPassengerForm, setNewPassengerForm] = useState({
+    organizationId: '', routeId: '', passengerType: 'EMPLOYEE' as 'EMPLOYEE' | 'STUDENT',
+    firstName: '', lastName: '', idNumber: '', email: '', phone: '',
+    emergencyContactName: '', emergencyContactPhone: '', pickupStopId: '',
+    effectiveFrom: new Date().toISOString().slice(0, 10), seatNumber: '',
+  });
+  const [selectedTripId, setSelectedTripId] = useState('');
+  const [tripScheduleId, setTripScheduleId] = useState('');
+  const [tripDate, setTripDate] = useState(new Date().toISOString().slice(0, 10));
+
+  useEffect(() => {
+    const currentTrip = shuttleTrips.find((trip) => trip.id === selectedTripId);
+    if (currentTrip && !['completed', 'cancelled'].includes(currentTrip.status)) return;
+    const activeTrip = shuttleTrips.find((trip) => ['in_progress', 'dispatched', 'scheduled'].includes(trip.status));
+    setSelectedTripId(activeTrip?.id || '');
+  }, [shuttleTrips, selectedTripId]);
+
+  const selectedTrip = shuttleTrips.find((trip) => trip.id === selectedTripId);
+  const attendanceByPassenger = new Map((selectedTrip?.attendanceRecords || []).map((record) => [record.passengerId, record]));
 
   // Stats calculation
   const stats = useMemo(() => {
     const totalRoutes = routes.length;
     const totalPassengers = passengers.length;
-    const boardedToday = passengers.filter((p) => p.hasBoardedToday).length;
-    const boardingRate = totalPassengers > 0 ? Math.round((boardedToday / totalPassengers) * 100) : 0;
-    const activeShuttles = schedules.filter((s) => s.status === 'in_transit').length;
+    const boardedToday = selectedTrip?.attendanceRecords.filter((record) => record.status === 'BOARDED' || record.status === 'ALIGHTED').length || 0;
+    const attendanceRosterSize = selectedTrip ? passengers.filter((passenger) => passenger.assignedRouteId === selectedTrip.routeId).length : 0;
+    const boardingRate = attendanceRosterSize > 0 ? Math.round((boardedToday / attendanceRosterSize) * 100) : 0;
+    const activeShuttles = shuttleTrips.filter((trip) => trip.status === 'in_progress').length;
 
     return {
       totalRoutes,
@@ -122,7 +150,7 @@ export const ShuttleDashboard: React.FC = () => {
       boardingRate,
       activeShuttles,
     };
-  }, [routes, passengers, schedules]);
+  }, [routes, passengers, schedules, selectedTrip, shuttleTrips]);
 
   const handleCreateRoute = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,11 +186,39 @@ export const ShuttleDashboard: React.FC = () => {
     }
   };
 
-  const handleToggleBoarding = async (passengerId: string, currentStatus: boolean) => {
+  const handleEnrollPassenger = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await createPassengerMutation.mutateAsync(newPassengerForm);
+      setIsNewPassengerModalOpen(false);
+      setNewPassengerForm({
+        organizationId: '', routeId: '', passengerType: 'EMPLOYEE', firstName: '', lastName: '',
+        idNumber: '', email: '', phone: '', emergencyContactName: '', emergencyContactPhone: '',
+        pickupStopId: '', effectiveFrom: new Date().toISOString().slice(0, 10), seatNumber: '',
+      });
+    } catch (err) {
+      console.error('Error enrolling shuttle passenger:', err);
+    }
+  };
+
+  const handleCreateDailyTrip = async () => {
+    if (!tripScheduleId || !tripDate) return;
+    try {
+      const trip = await generateTripMutation.mutateAsync({ scheduleId: tripScheduleId, tripDate });
+      setSelectedTripId(trip.id);
+    } catch (err) {
+      console.error('Error creating daily shuttle trip:', err);
+    }
+  };
+
+  const handleRecordAttendance = async (passenger: ShuttlePassenger, status: 'BOARDED' | 'ALIGHTED' | 'ABSENT' | 'EXCUSED') => {
+    if (!selectedTripId) return;
     try {
       await markBoardedMutation.mutateAsync({
-        passengerId,
-        hasBoarded: !currentStatus,
+        tripId: selectedTripId,
+        passengerId: passenger.id,
+        stopId: passenger.pickupStopId,
+        status,
       });
     } catch (err) {
       console.error('Error updating boarding status:', err);
@@ -181,6 +237,16 @@ export const ShuttleDashboard: React.FC = () => {
       return matchesSearch && matchesRoute;
     });
   }, [passengers, paxSearch, routeFilter]);
+
+  const rosterWithAttendance = filteredPassengers.map((passenger) => {
+    const attendance = attendanceByPassenger.get(passenger.id);
+    return {
+      ...passenger,
+      attendanceStatus: attendance?.status,
+      hasBoardedToday: attendance?.status === 'BOARDED' || attendance?.status === 'ALIGHTED',
+      boardingTimestamp: attendance?.timestamp ? new Date(attendance.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined,
+    };
+  });
 
   const passengerColumns: Column<ShuttlePassenger>[] = [
     {
@@ -228,14 +294,14 @@ export const ShuttleDashboard: React.FC = () => {
       header: 'Boarding Status',
       render: (_: any, row: ShuttlePassenger) => (
         <div>
-          {row.hasBoardedToday ? (
+          {row.attendanceStatus === 'BOARDED' || row.attendanceStatus === 'ALIGHTED' ? (
             <Badge variant="success" size="sm">
-              BOARDED ({row.boardingTimestamp || 'Scan verified'})
+              {row.attendanceStatus} ({row.boardingTimestamp || 'Recorded'})
             </Badge>
+          ) : row.attendanceStatus ? (
+            <Badge variant={row.attendanceStatus === 'ABSENT' ? 'warning' : 'neutral'} size="sm">{row.attendanceStatus}</Badge>
           ) : (
-            <Badge variant="default" size="sm">
-              NOT BOARDED
-            </Badge>
+            <Badge variant="default" size="sm">NOT RECORDED</Badge>
           )}
         </div>
       ),
@@ -244,15 +310,10 @@ export const ShuttleDashboard: React.FC = () => {
       key: 'actions',
       header: '',
       render: (_: any, row: ShuttlePassenger) => (
-        <div className="flex justify-end">
-          <Button
-            size="xs"
-            variant={row.hasBoardedToday ? 'outline' : 'primary'}
-            className={row.hasBoardedToday ? 'text-slate-400' : 'bg-emerald-600 hover:bg-emerald-500'}
-            onClick={() => handleToggleBoarding(row.id, row.hasBoardedToday)}
-          >
-            {row.hasBoardedToday ? 'Cancel Boarding' : 'Mark Boarded (QR)'}
-          </Button>
+        <div className="min-w-36">
+          <Select aria-label={`Record attendance for ${row.name}`} value={row.attendanceStatus || ''} disabled={!selectedTrip || selectedTrip.routeId !== row.assignedRouteId || markBoardedMutation.isPending}
+            onChange={(e) => { if (e.target.value) void handleRecordAttendance(row, e.target.value as 'BOARDED' | 'ALIGHTED' | 'ABSENT' | 'EXCUSED'); }}
+            options={[{ label: row.attendanceStatus ? 'Update attendance…' : 'Record attendance…', value: '' }, { label: 'Boarded', value: 'BOARDED' }, { label: 'Absent', value: 'ABSENT' }, { label: 'Excused', value: 'EXCUSED' }, { label: 'Alighted', value: 'ALIGHTED' }]} />
         </div>
       ),
     },
@@ -330,7 +391,7 @@ export const ShuttleDashboard: React.FC = () => {
           changeType="positive"
         />
         <StatCard
-          title="Boarded Today"
+          title="Boarded on Selected Trip"
           value={`${stats.boardedToday} pax`}
           icon={CheckCircle2}
           change={`${stats.boardingRate}% Attendance Rate`}
@@ -534,6 +595,21 @@ export const ShuttleDashboard: React.FC = () => {
       {/* ================= TAB 3: PASSENGER ROSTER & ATTENDANCE ================= */}
       {activeTab === 'passengers' && (
         <div className="space-y-4">
+          <Card className="border-slate-800 bg-slate-900/60 p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div><h3 className="text-sm font-bold text-white">Trip Attendance</h3><p className="text-xs text-slate-400">Choose an active trip to record boarding, or create today’s trip from a recurring schedule.</p></div>
+              <Button variant="primary" size="sm" onClick={() => setIsNewPassengerModalOpen(true)} icon={<Plus className="h-4 w-4" />}>Add Passenger</Button>
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4 md:items-end">
+              <Select label="Attendance Trip" value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)} options={[{ label: '-- Select trip --', value: '' }, ...shuttleTrips.filter((trip) => ['scheduled', 'dispatched', 'in_progress'].includes(trip.status)).map((trip) => ({ label: `${trip.tripNumber} · ${trip.routeCode} · ${trip.tripDate} · ${trip.status.replace(/_/g, ' ')}`, value: trip.id }))]} />
+              <Select label="Recurring Schedule" value={tripScheduleId} onChange={(e) => setTripScheduleId(e.target.value)} options={[{ label: '-- Select schedule --', value: '' }, ...schedules.filter((schedule) => schedule.status !== 'cancelled').map((schedule) => ({ label: `${schedule.routeName} · ${schedule.departureTime}`, value: schedule.id }))]} />
+              <Input label="Trip Date" type="date" required value={tripDate} onChange={(e) => setTripDate(e.target.value)} />
+              <Button variant="outline" disabled={!tripScheduleId || !tripDate || generateTripMutation.isPending} isLoading={generateTripMutation.isPending} onClick={handleCreateDailyTrip}>Create Daily Trip</Button>
+            </div>
+            {generateTripMutation.isError && <p role="alert" className="mt-2 text-xs text-rose-300">{(generateTripMutation.error as Error)?.message || 'Could not create the trip.'}</p>}
+            {shuttleTrips.length === 0 && !isLoadingTrips && <p className="mt-2 text-xs text-amber-300">No trip is available yet. Select a recurring schedule and create today’s trip to take attendance.</p>}
+            {markBoardedMutation.isError && <p role="alert" className="mt-2 text-xs text-rose-300">{(markBoardedMutation.error as Error)?.message || 'Could not save attendance.'}</p>}
+          </Card>
           <Card className="p-4 bg-slate-900/60 border-slate-800">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="relative flex-1 max-w-md">
@@ -581,7 +657,7 @@ export const ShuttleDashboard: React.FC = () => {
             <Card className="p-0 overflow-hidden border-slate-800">
               <DataTable
                 columns={passengerColumns}
-                data={filteredPassengers}
+                data={rosterWithAttendance}
                 keyField="id"
                 isLoading={false}
                 emptyTitle="No passengers found"
@@ -722,6 +798,29 @@ export const ShuttleDashboard: React.FC = () => {
               Create Shift Schedule
             </Button>
           </div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={isNewPassengerModalOpen} onClose={() => setIsNewPassengerModalOpen(false)} title="Enroll Passenger & Assign Route" size="lg">
+        <form onSubmit={handleEnrollPassenger} className="space-y-4">
+          {createPassengerMutation.isError && <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">{(createPassengerMutation.error as Error)?.message || 'Could not enroll passenger.'}</p>}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Select label="Organization" required value={newPassengerForm.organizationId} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, organizationId: e.target.value, routeId: '' })} options={[{ label: '-- Select organization --', value: '' }, ...organizations.filter((organization) => organization.isActive).map((organization) => ({ label: `${organization.name} (${organization.code})`, value: organization.id }))]} />
+            <Select label="Shuttle Route" required disabled={!newPassengerForm.organizationId} value={newPassengerForm.routeId} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, routeId: e.target.value, pickupStopId: '' })} options={[{ label: '-- Select route --', value: '' }, ...routes.filter((route) => route.organizationId === newPassengerForm.organizationId && route.status === 'active').map((route) => ({ label: `${route.routeCode} · ${route.name}`, value: route.id }))]} />
+            <Select label="Passenger Type" required value={newPassengerForm.passengerType} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, passengerType: e.target.value as 'EMPLOYEE' | 'STUDENT' })} options={[{ label: 'Employee', value: 'EMPLOYEE' }, { label: 'Student', value: 'STUDENT' }]} />
+            <Input label="Employee / Student ID" required value={newPassengerForm.idNumber} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, idNumber: e.target.value })} />
+            <Input label="First Name" required value={newPassengerForm.firstName} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, firstName: e.target.value })} />
+            <Input label="Last Name" required value={newPassengerForm.lastName} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, lastName: e.target.value })} />
+            <Input label="Phone" type="tel" required value={newPassengerForm.phone} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, phone: e.target.value })} />
+            <Input label="Email" type="email" value={newPassengerForm.email} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, email: e.target.value })} />
+            <Input label="Emergency Contact Name" value={newPassengerForm.emergencyContactName} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, emergencyContactName: e.target.value })} />
+            <Input label="Emergency Contact Phone" type="tel" value={newPassengerForm.emergencyContactPhone} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, emergencyContactPhone: e.target.value })} />
+            <Select label="Pickup Stop (Optional)" disabled={!newPassengerForm.routeId} value={newPassengerForm.pickupStopId} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, pickupStopId: e.target.value })} options={[{ label: '-- No stop selected --', value: '' }, ...(routes.find((route) => route.id === newPassengerForm.routeId)?.stops || []).map((stop) => ({ label: `${stop.sequence}. ${stop.name}`, value: stop.id }))]} />
+            <Input label="Seat Number (Optional)" value={newPassengerForm.seatNumber} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, seatNumber: e.target.value })} />
+            <Input label="Assignment Effective From" type="date" required value={newPassengerForm.effectiveFrom} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, effectiveFrom: e.target.value })} />
+          </div>
+          <p className="text-xs text-slate-400">Passenger enrollment and route assignment are saved together. If validation fails, neither record is created.</p>
+          <div className="flex justify-end gap-2 border-t border-slate-800 pt-3"><Button type="button" variant="outline" onClick={() => setIsNewPassengerModalOpen(false)}>Cancel</Button><Button type="submit" isLoading={createPassengerMutation.isPending}>Enroll Passenger</Button></div>
         </form>
       </Modal>
     </div>
