@@ -30,9 +30,11 @@ import { Tabs } from '../../components/common/Tabs';
 import { DataTable, Column } from '../../components/tables/DataTable';
 import {
   useShuttleRoutes,
+  useShuttleOrganizations,
   useShuttleSchedules,
   useShuttlePassengers,
   useCreateShuttleRouteMutation,
+  useCreateShuttleOrganizationMutation,
   useCreateShuttleScheduleMutation,
   useUpdateScheduleStatusMutation,
   useMarkPassengerBoardedMutation,
@@ -41,6 +43,7 @@ import { QueryStateWrapper } from '../../components/common/QueryStateWrapper';
 
 export const ShuttleDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('routes');
+  const { data: organizations = [] } = useShuttleOrganizations();
 
   // Search & Filters
   const [paxSearch, setPaxSearch] = useState('');
@@ -73,6 +76,7 @@ export const ShuttleDashboard: React.FC = () => {
 
   // TanStack Mutations
   const createRouteMutation = useCreateShuttleRouteMutation();
+  const createOrganizationMutation = useCreateShuttleOrganizationMutation();
   const createScheduleMutation = useCreateShuttleScheduleMutation();
   const updateScheduleStatusMutation = useUpdateScheduleStatusMutation();
   const markBoardedMutation = useMarkPassengerBoardedMutation();
@@ -81,25 +85,20 @@ export const ShuttleDashboard: React.FC = () => {
 
   // Modals
   const [isNewRouteModalOpen, setIsNewRouteModalOpen] = useState(false);
+  const [isNewOrganizationModalOpen, setIsNewOrganizationModalOpen] = useState(false);
   const [isNewScheduleModalOpen, setIsNewScheduleModalOpen] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<ShuttleRoute | null>(null);
 
   // Form states
   const [newRouteForm, setNewRouteForm] = useState({
+    organizationId: '',
     routeCode: '',
     name: '',
-    organizationType: 'corporate_it' as ShuttleRoute['organizationType'],
-    destinationCampus: '',
-    totalDistanceKm: 25,
-    estimatedDurationMins: 45,
-    assignedBusNumber: 'BUS-SH-105',
-    assignedDriverName: 'Arthur Vance',
-    stops: [
-      { id: 'st_1', name: 'Downtown Central Station', sequence: 1, scheduledTime: '07:30', address: '100 State St', passengersAssignedCount: 10 },
-      { id: 'st_2', name: 'North River Crossing', sequence: 2, scheduledTime: '07:50', address: '500 W Grand Ave', passengersAssignedCount: 15 },
-      { id: 'st_3', name: 'Campus Main Dropoff', sequence: 3, scheduledTime: '08:15', address: 'Innovation Park Gate 1', passengersAssignedCount: 0 },
-    ],
+    startLocation: '',
+    endLocation: '',
+    direction: 'INBOUND',
   });
+  const [newOrganizationForm, setNewOrganizationForm] = useState({ orgType: 'CORPORATE' as 'CORPORATE' | 'SCHOOL', name: '', code: '', contactPerson: '', contactEmail: '', contactPhone: '', address: '' });
 
   const [newScheduleForm, setNewScheduleForm] = useState({
     routeId: '',
@@ -135,6 +134,19 @@ export const ShuttleDashboard: React.FC = () => {
       setIsNewRouteModalOpen(false);
     } catch (err) {
       console.error('Error creating route:', err);
+    }
+  };
+
+  const handleCreateOrganization = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const organization = await createOrganizationMutation.mutateAsync(newOrganizationForm);
+      setNewRouteForm((form) => ({ ...form, organizationId: organization.id }));
+      setNewOrganizationForm({ orgType: 'CORPORATE', name: '', code: '', contactPerson: '', contactEmail: '', contactPhone: '', address: '' });
+      setIsNewOrganizationModalOpen(false);
+      setIsNewRouteModalOpen(true);
+    } catch (err) {
+      console.error('Error creating shuttle organization:', err);
     }
   };
 
@@ -593,6 +605,17 @@ export const ShuttleDashboard: React.FC = () => {
         title="Create Fixed Transit Shuttle Route"
       >
         <form onSubmit={handleCreateRoute} className="space-y-4">
+          {createRouteMutation.isError && <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">{(createRouteMutation.error as Error)?.message || 'Could not create shuttle route.'}</p>}
+          <div className="flex items-end gap-2">
+            <Select
+              label="Corporate / School Organization"
+              required
+              value={newRouteForm.organizationId}
+              onChange={(e) => setNewRouteForm({ ...newRouteForm, organizationId: e.target.value })}
+              options={[{ label: '-- Select organization --', value: '' }, ...organizations.filter((organization) => organization.isActive).map((organization) => ({ label: `${organization.name} (${organization.code})`, value: organization.id }))]}
+            />
+            <Button type="button" variant="outline" onClick={() => { setIsNewRouteModalOpen(false); setIsNewOrganizationModalOpen(true); }}>Add Organization</Button>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Input
               label="Route Identifier"
@@ -601,17 +624,7 @@ export const ShuttleDashboard: React.FC = () => {
               onChange={(e) => setNewRouteForm({ ...newRouteForm, routeCode: e.target.value })}
               placeholder="e.g. S-CORP-202"
             />
-            <Select
-              label="Organization Type"
-              value={newRouteForm.organizationType}
-              onChange={(e) => setNewRouteForm({ ...newRouteForm, organizationType: e.target.value as any })}
-              options={[
-                { label: 'Corporate IT & Tech', value: 'corporate_it' },
-                { label: 'School & Academy', value: 'school' },
-                { label: 'Healthcare & Hospital', value: 'healthcare' },
-                { label: 'University Campus', value: 'university' },
-              ]}
-            />
+            <Select label="Route Direction" value={newRouteForm.direction} onChange={(e) => setNewRouteForm({ ...newRouteForm, direction: e.target.value })} options={[{ label: 'Inbound', value: 'INBOUND' }, { label: 'Outbound', value: 'OUTBOUND' }, { label: 'Round Trip', value: 'ROUND_TRIP' }]} />
           </div>
 
           <Input
@@ -623,36 +636,34 @@ export const ShuttleDashboard: React.FC = () => {
           />
 
           <Input
-            label="Destination Campus / Hub"
+            label="Starting Location"
             required
-            value={newRouteForm.destinationCampus}
-            onChange={(e) => setNewRouteForm({ ...newRouteForm, destinationCampus: e.target.value })}
-            placeholder="e.g. Main Innovation Campus Gate 2"
+            value={newRouteForm.startLocation}
+            onChange={(e) => setNewRouteForm({ ...newRouteForm, startLocation: e.target.value })}
+            placeholder="e.g. Downtown Central Station"
           />
-
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Estimated Distance (km)"
-              type="number"
-              value={newRouteForm.totalDistanceKm}
-              onChange={(e) => setNewRouteForm({ ...newRouteForm, totalDistanceKm: Number(e.target.value) })}
-            />
-            <Input
-              label="Est. Duration (minutes)"
-              type="number"
-              value={newRouteForm.estimatedDurationMins}
-              onChange={(e) => setNewRouteForm({ ...newRouteForm, estimatedDurationMins: Number(e.target.value) })}
-            />
-          </div>
+          <Input label="Destination Campus / Hub" required value={newRouteForm.endLocation} onChange={(e) => setNewRouteForm({ ...newRouteForm, endLocation: e.target.value })} placeholder="e.g. Main Innovation Campus Gate 2" />
 
           <div className="flex justify-end gap-2 pt-4 border-t border-slate-800">
             <Button variant="outline" type="button" onClick={() => setIsNewRouteModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit">
+            <Button variant="primary" type="submit" isLoading={createRouteMutation.isPending}>
               Save Route
             </Button>
           </div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={isNewOrganizationModalOpen} onClose={() => setIsNewOrganizationModalOpen(false)} title="Add Shuttle Organization">
+        <form onSubmit={handleCreateOrganization} className="space-y-3">
+          {createOrganizationMutation.isError && <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">{(createOrganizationMutation.error as Error)?.message || 'Could not create organization.'}</p>}
+          <Select label="Organization Type" value={newOrganizationForm.orgType} onChange={(e) => setNewOrganizationForm({ ...newOrganizationForm, orgType: e.target.value as 'CORPORATE' | 'SCHOOL' })} options={[{ label: 'Corporate / Employer', value: 'CORPORATE' }, { label: 'School / Academic Institution', value: 'SCHOOL' }]} />
+          <div className="grid grid-cols-2 gap-3"><Input label="Organization Name" required value={newOrganizationForm.name} onChange={(e) => setNewOrganizationForm({ ...newOrganizationForm, name: e.target.value })} /><Input label="Organization Code" required value={newOrganizationForm.code} onChange={(e) => setNewOrganizationForm({ ...newOrganizationForm, code: e.target.value })} /></div>
+          <Input label="Contact Person" required value={newOrganizationForm.contactPerson} onChange={(e) => setNewOrganizationForm({ ...newOrganizationForm, contactPerson: e.target.value })} />
+          <div className="grid grid-cols-2 gap-3"><Input label="Contact Email" type="email" required value={newOrganizationForm.contactEmail} onChange={(e) => setNewOrganizationForm({ ...newOrganizationForm, contactEmail: e.target.value })} /><Input label="Contact Phone" required value={newOrganizationForm.contactPhone} onChange={(e) => setNewOrganizationForm({ ...newOrganizationForm, contactPhone: e.target.value })} /></div>
+          <Input label="Organization Address" required value={newOrganizationForm.address} onChange={(e) => setNewOrganizationForm({ ...newOrganizationForm, address: e.target.value })} />
+          <div className="flex justify-end gap-2 border-t border-slate-800 pt-3"><Button type="button" variant="outline" onClick={() => { setIsNewOrganizationModalOpen(false); setIsNewRouteModalOpen(true); }}>Cancel</Button><Button type="submit" isLoading={createOrganizationMutation.isPending}>Save Organization</Button></div>
         </form>
       </Modal>
 

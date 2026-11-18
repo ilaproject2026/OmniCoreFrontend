@@ -776,7 +776,11 @@ export const TripsHub: React.FC = () => {
               required
               placeholder="e.g. Pfizer BioPharma, Target DC"
               value={newBooking.customerName}
-              onChange={(e) => setNewBooking({ ...newBooking, customerName: e.target.value })}
+              onChange={(e) => setNewBooking({
+                ...newBooking,
+                customerName: e.target.value,
+                ...(e.target.value !== newBooking.customerName ? { customerId: '' } : {}),
+              })}
             />
 
             <Input

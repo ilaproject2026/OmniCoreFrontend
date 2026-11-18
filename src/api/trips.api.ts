@@ -27,16 +27,12 @@ export async function resolveCustomerUuid(
       if (candidateName) {
         const target = candidateName.trim().toLowerCase();
         const matched = custList.find((c) => {
-          const comp = (c.company_name || c.name || '').toLowerCase();
-          return comp.includes(target) || target.includes(comp);
+          const comp = (c.company_name || c.name || '').trim().toLowerCase();
+          return comp === target;
         });
         if (matched && isUuid(matched.id)) {
           return matched.id;
         }
-      }
-      const firstValid = custList.find((c) => isUuid(c.id));
-      if (firstValid) {
-        return firstValid.id;
       }
     }
 
@@ -72,6 +68,7 @@ export const normalizeBookingResponse = (data: any): Booking => {
     bookingCode: data.booking_number || data.bookingCode || `BK-${data.id || '2026'}`,
     customerId: typeof data.customer === 'string' ? data.customer : data.customer?.id,
     customerName: data.customer_name || data.customerName || data.customer?.company_name || 'Client',
+    customerPhone: data.customer_phone || data.customerPhone || data.customer?.phone || '',
     vertical: data.vertical || 'freight_logistics',
     vehicleType: data.vehicle_type || data.vehicleType,
     pickupLocation: data.pickup_location || data.pickupLocation || '',
@@ -184,6 +181,16 @@ export const tripsApi = {
       );
     }
 
+    // Keep edited client contact details in CRM and ensure the booking remains linked
+    // to the correct customer instead of silently falling back to the first CRM entry.
+    if (customerUuid && payload.customerName) {
+      await apiClient.patch(`/crm/customers/${customerUuid}/`, {
+        company_name: payload.customerName,
+        contact_person: payload.customerName,
+        phone: payload.customerPhone || '',
+      });
+    }
+
     const backendData: Record<string, any> = {
       pickup_location: payload.pickupLocation,
       dropoff_location: payload.dropoffLocation,
@@ -222,6 +229,20 @@ export const tripsApi = {
   },
 
   updateBooking: async (id: string, payload: Partial<Booking>): Promise<Booking> => {
+    let customerUuid = isUuid(payload.customerId) ? payload.customerId : undefined;
+    if (!customerUuid && payload.customerName) {
+      customerUuid = await resolveCustomerUuid(undefined, payload.customerName, {
+        phone: payload.customerPhone,
+        address: payload.pickupLocation,
+      });
+    }
+    if (customerUuid && payload.customerName) {
+      await apiClient.patch(`/crm/customers/${customerUuid}/`, {
+        company_name: payload.customerName,
+        contact_person: payload.customerName,
+        phone: payload.customerPhone || '',
+      });
+    }
     const data: Record<string, any> = {
       pickup_location: payload.pickupLocation,
       dropoff_location: payload.dropoffLocation,
@@ -232,7 +253,7 @@ export const tripsApi = {
     };
     if (payload.estimatedWeightKg !== undefined) data.cargo_weight_kg = payload.estimatedWeightKg;
     if (payload.scheduledPickupTime) data.scheduled_date = payload.scheduledPickupTime;
-    if (payload.customerId && isUuid(payload.customerId)) data.customer = payload.customerId;
+    if (customerUuid) data.customer = customerUuid;
     const response = await apiClient.patch<any>(`/trips/bookings/${id}/`, data);
     return normalizeBookingResponse(response.data);
   },

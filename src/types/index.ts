@@ -1001,7 +1001,7 @@ export interface MultiPointStop {
   contactPhone: string;
   timeWindow: string;
   parcelCount: number;
-  status: 'pending' | 'assigned' | 'picked_up' | 'failed' | 'rescheduled' | 'completed';
+  status: 'pending' | 'assigned' | 'in_progress' | 'picked_up' | 'failed' | 'rescheduled' | 'completed';
   notes?: string;
 }
 
@@ -1009,6 +1009,8 @@ export interface MultiPointPickup {
   id: string;
   pickupCode: string;
   tenantId: string;
+  shipmentId?: string;
+  shipmentAwb?: string;
   assignedAgentId?: string;
   assignedAgentName?: string;
   stops: MultiPointStop[];
@@ -1025,6 +1027,7 @@ export interface DeliveryHub {
   city: string;
   address: string;
   capacityParcels: number;
+  capacitySqft?: number;
   currentParcelsCount: number;
   incomingShipmentsCount: number;
   pendingSortingCount: number;
@@ -1032,6 +1035,37 @@ export interface DeliveryHub {
   outgoingShipmentsCount: number;
   managerName: string;
   status: 'operational' | 'high_volume' | 'maintenance';
+}
+
+export interface HubConvoy {
+  id: string;
+  convoyNumber: string;
+  originHubId: string;
+  originHubName: string;
+  destinationHubId: string;
+  destinationHubName: string;
+  vehicleId?: string;
+  vehicleRegistration?: string;
+  driverId?: string;
+  driverName?: string;
+  shipmentIds: string[];
+  shipmentAwbs: string[];
+  status: 'planned' | 'departed' | 'arrived' | 'cancelled';
+  scheduledDeparture?: string;
+  departedAt?: string;
+  arrivedAt?: string;
+  notes?: string;
+}
+
+export interface CourierExpenseRecord {
+  id: string;
+  agentId: string;
+  agentName: string;
+  expenseType: string;
+  amount: number;
+  date: string;
+  notes: string;
+  isApproved: boolean;
 }
 
 export interface SortingRecord {
@@ -1061,6 +1095,11 @@ export interface CourierAgent {
   pendingPayoutAmount: number;
   paidAmountTotal: number;
   vehicleType: 'motorcycle' | 'van' | 'e_bike';
+  driverId?: string;
+  vehicleId?: string;
+  vehicleRegistration?: string;
+  commissionRate?: number;
+  currentHubId?: string;
 }
 
 export interface AgentCommission {
@@ -1108,9 +1147,14 @@ export interface ShuttleStop {
 
 export interface ShuttleRoute {
   id: string;
+  organizationId?: string;
+  organizationName?: string;
   routeCode: string;
   name: string;
   organizationType: 'school' | 'corporate_it' | 'healthcare' | 'university';
+  startLocation?: string;
+  endLocation?: string;
+  direction?: 'inbound' | 'outbound' | 'round_trip';
   stops: ShuttleStop[];
   destinationCampus: string;
   totalDistanceKm: number;
@@ -1118,6 +1162,18 @@ export interface ShuttleRoute {
   assignedBusNumber?: string;
   assignedDriverName?: string;
   status: 'active' | 'in_transit' | 'scheduled' | 'cancelled';
+}
+
+export interface ShuttleOrganization {
+  id: string;
+  name: string;
+  code: string;
+  orgType: 'SCHOOL' | 'CORPORATE';
+  contactPerson: string;
+  contactEmail: string;
+  contactPhone: string;
+  address: string;
+  isActive: boolean;
 }
 
 export interface ShuttleSchedule {

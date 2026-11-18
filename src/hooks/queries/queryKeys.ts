@@ -47,9 +47,12 @@ export const queryKeys = {
     agents: ['courier', 'agents'] as const,
     commissions: (agentId?: string) => ['courier', 'commissions', agentId] as const,
     payouts: ['courier', 'payouts'] as const,
+    expenses: ['courier', 'expenses'] as const,
+    convoys: ['courier', 'convoys'] as const,
   },
   shuttle: {
     all: ['shuttle'] as const,
+    organizations: ['shuttle', 'organizations'] as const,
     routes: (orgId?: string) => ['shuttle', 'routes', orgId] as const,
     routeDetail: (id: string) => ['shuttle', 'route', id] as const,
     schedules: (routeId?: string) => ['shuttle', 'schedules', routeId] as const,

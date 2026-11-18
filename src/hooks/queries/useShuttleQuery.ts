@@ -1,9 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from './queryKeys';
 import { shuttleApi } from '../../api/shuttle.api';
-import { ShuttleRoute, ShuttleSchedule } from '../../types';
+import { ShuttleOrganization, ShuttleRoute, ShuttleSchedule } from '../../types';
 
 // ==================== QUERIES ====================
+
+export function useShuttleOrganizations() {
+  return useQuery({ queryKey: queryKeys.shuttle.organizations, queryFn: () => shuttleApi.getOrganizations() });
+}
 
 export function useShuttleRoutes() {
   return useQuery({
@@ -38,10 +42,18 @@ export function useCreateShuttleRouteMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload: Partial<ShuttleRoute>) => shuttleApi.createRoute(payload),
+    mutationFn: (payload: { organizationId: string; routeCode: string; name: string; startLocation: string; endLocation: string; direction: string }) => shuttleApi.createRoute(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.shuttle.routes() });
     },
+  });
+}
+
+export function useCreateShuttleOrganizationMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Omit<ShuttleOrganization, 'id' | 'isActive'>) => shuttleApi.createOrganization(payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.shuttle.organizations }),
   });
 }
 
