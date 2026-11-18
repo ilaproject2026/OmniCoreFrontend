@@ -730,6 +730,7 @@ export type LeadStage = 'inquiry' | 'qualification' | 'proposal' | 'negotiation'
 
 export interface Lead {
   id: string;
+  convertedCustomerId?: string;
   companyName: string;
   contactPerson: string;
   email: string;

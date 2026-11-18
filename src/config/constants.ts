@@ -137,7 +137,6 @@ export const PACKAGES: Record<string, PackageDefinition> = {
       'Trip Dispatch & Live Tracking',
       'Workshop & Maintenance',
       'Finance & Invoicing',
-      'Warehouse & Spare Parts',
       'Single Tenant Workspace',
       'Standard Email Support',
     ],
@@ -172,6 +171,7 @@ export const PACKAGES: Record<string, PackageDefinition> = {
     maxUsers: 50,
     coreFeatures: [
       'All Standard Fleet features',
+      'Warehouse & Spare Parts',
       'CRM Sales Pipeline & Customer Accounts',
       'Insurance & Claims Management',
       'Expanded Capacity: Up to 500 Vehicles and 50 Users',
@@ -218,14 +218,14 @@ export const TIER_DISPLAY_NAMES: Record<PackageTier, string> = {
 };
 
 export const MODULE_REQUIRED_TIERS: Record<string, PackageTier> = {
-  // Base Tier (Level 1) - Available in Basic, Standard, Enterprise
+  // Core tier (Level 1) - Available in Basic and inherited by higher tiers
   dashboard: 'basic',
   fleet: 'basic',
   drivers: 'basic',
   trips: 'basic',
   maintenance: 'basic',
   finance: 'basic',
-  warehouse: 'basic',
+  warehouse: 'corporate',
   settings: 'basic',
   notifications: 'basic',
 

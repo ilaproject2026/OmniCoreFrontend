@@ -11,19 +11,12 @@ import { Select } from '../../components/common/Select';
 import { DataTable, ColumnDef } from '../../components/tables/DataTable';
 import { Lead, Customer, LeadStage, VerticalType } from '../../types';
 import {
-  UserCheck,
   Plus,
-  DollarSign,
-  Building2,
-  Phone,
-  Mail,
   ArrowRight,
   Sparkles,
-  CheckCircle2,
   UserPlus,
-  ShieldCheck,
 } from 'lucide-react';
-import { formatCurrency, formatDate } from '../../lib/utils';
+import { formatCurrency } from '../../lib/utils';
 
 export const CrmHub: React.FC = () => {
   const queryClient = useQueryClient();
@@ -118,12 +111,12 @@ export const CrmHub: React.FC = () => {
     },
   });
 
-  const stages: { id: LeadStage; label: string; color: string }[] = [
-    { id: 'inquiry', label: 'Inquiries', color: 'border-blue-500/40 text-blue-400' },
-    { id: 'qualification', label: 'Qualification', color: 'border-purple-500/40 text-purple-400' },
-    { id: 'proposal', label: 'Proposal Sent', color: 'border-cyan-500/40 text-cyan-400' },
-    { id: 'negotiation', label: 'Negotiation', color: 'border-amber-500/40 text-amber-400' },
-    { id: 'won', label: 'Won / Signed', color: 'border-emerald-500/40 text-emerald-400' },
+  const stages: { id: LeadStage; label: string; description: string; color: string; nextStage?: LeadStage; actionLabel?: string }[] = [
+    { id: 'inquiry', label: 'Inquiries', description: 'New lead needs first contact', color: 'border-blue-500/40 text-blue-400', nextStage: 'qualification', actionLabel: 'Qualify lead' },
+    { id: 'qualification', label: 'Qualification', description: 'Confirm need, fit, and timing', color: 'border-purple-500/40 text-purple-400', nextStage: 'proposal', actionLabel: 'Send proposal' },
+    { id: 'proposal', label: 'Proposal Sent', description: 'Scope and pricing shared', color: 'border-cyan-500/40 text-cyan-400', nextStage: 'negotiation', actionLabel: 'Start negotiation' },
+    { id: 'negotiation', label: 'Negotiation', description: 'Resolve terms and close', color: 'border-amber-500/40 text-amber-400', nextStage: 'won', actionLabel: 'Mark won' },
+    { id: 'won', label: 'Won / Signed', description: 'Closed won; ready to onboard', color: 'border-emerald-500/40 text-emerald-400' },
   ];
 
   const customerColumns: ColumnDef<Customer>[] = [
@@ -180,18 +173,19 @@ export const CrmHub: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">CRM & Enterprise Shipper Accounts</h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Logistics freight pipeline, qualification, contract negotiations, and corporate customer profiles.
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-400 mb-2">Customer growth</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight">CRM & Sales Pipeline</h1>
+          <p className="text-sm text-slate-400 mt-2 max-w-2xl leading-6">
+            Qualify shipper opportunities, track negotiations, and manage active customer accounts.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="shrink-0">
           {viewMode === 'pipeline' ? (
             <Button
-              size="sm"
+              size="md"
               variant="primary"
               leftIcon={<Plus className="h-4 w-4" />}
               onClick={() => setIsNewLeadModalOpen(true)}
@@ -200,7 +194,7 @@ export const CrmHub: React.FC = () => {
             </Button>
           ) : (
             <Button
-              size="sm"
+              size="md"
               variant="primary"
               leftIcon={<UserPlus className="h-4 w-4" />}
               onClick={() => setIsNewCustomerModalOpen(true)}
@@ -209,91 +203,118 @@ export const CrmHub: React.FC = () => {
             </Button>
           )}
 
-          <Tabs
-            tabs={[
-              { id: 'pipeline', label: 'Sales Pipeline (Kanban)' },
-              { id: 'customers', label: 'Customer Directory', count: customers.length },
-            ]}
-            activeTab={viewMode}
-            onChange={(id) => setViewMode(id as any)}
-            variant="pills"
-          />
         </div>
       </div>
 
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-white">
+            {viewMode === 'pipeline' ? 'Opportunity pipeline' : 'Customer directory'}
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">
+            {viewMode === 'pipeline'
+              ? `${leads.length} ${leads.length === 1 ? 'opportunity' : 'opportunities'} across five sales stages`
+              : `${customers.length} ${customers.length === 1 ? 'customer account' : 'customer accounts'}`}
+          </p>
+        </div>
+        <div className="shrink-0">
+          <Tabs
+            tabs={[
+              { id: 'pipeline', label: 'Pipeline' },
+              { id: 'customers', label: 'Customers', count: customers.length },
+            ]}
+            activeTab={viewMode}
+            onChange={(id) => setViewMode(id as 'pipeline' | 'customers')}
+            variant="pills"
+          />
+        </div>
+      </section>
+
       {/* Kanban Pipeline View */}
       {viewMode === 'pipeline' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto pb-4">
+        <div className="grid grid-flow-col auto-cols-[minmax(260px,1fr)] gap-4 overflow-x-auto pb-4">
           {stages.map((stage) => {
             const stageLeads = leads.filter((l) => l.stage === stage.id);
             const totalStageValue = stageLeads.reduce((sum, l) => sum + l.estimatedMonthlyValue, 0);
 
             return (
-              <div key={stage.id} className="rounded-xl border border-slate-800 bg-[#0f172a]/60 p-3.5 space-y-3 min-w-[230px]">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-white">{stage.label}</span>
-                    <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded-full">
+              <section key={stage.id} className="rounded-2xl border border-slate-800 bg-slate-900/55 p-3.5 sm:p-4 space-y-3.5 min-h-[360px] shadow-sm">
+                <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-3">
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-white block truncate">{stage.label}</span>
+                    <span className="text-[10px] text-slate-500 mt-1 block">{stage.description}</span>
+                  </div>
+                    <span className={`shrink-0 text-[10px] font-semibold px-2 py-1 rounded-full bg-slate-800/80 border ${stage.color}`}>
                       {stageLeads.length}
                     </span>
-                  </div>
+                </div>
+
+                <div className="rounded-xl bg-slate-950/40 border border-slate-800/70 px-3 py-2 flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500">Monthly value</span>
                   <span className="text-[11px] font-mono text-emerald-400 font-semibold">
                     {formatCurrency(totalStageValue)}
                   </span>
                 </div>
 
-                <div className="space-y-2.5">
+                <div className="space-y-3">
+                  {stageLeads.length === 0 && (
+                    <div className="rounded-xl border border-dashed border-slate-700/80 px-3 py-5 text-center text-[11px] text-slate-500">
+                      No opportunities here yet
+                    </div>
+                  )}
                   {stageLeads.map((lead) => (
-                    <Card key={lead.id} className="p-3 bg-[#141c2e] hover:border-blue-500/50 space-y-2 text-xs">
-                      <div className="flex justify-between items-start">
-                        <span className="font-bold text-white block truncate">{lead.companyName}</span>
+                    <Card key={lead.id} className="p-3.5 bg-slate-800/75 hover:bg-slate-800 border border-slate-700/80 hover:border-blue-500/50 space-y-3 text-xs transition-colors">
+                      <div className="space-y-2">
+                        <span className="font-semibold text-white block leading-5 break-words">{lead.companyName}</span>
                         <Badge variant="outline" size="sm" className="capitalize text-[9px]">
                           {lead.verticalInterest?.replace('_', ' ') || 'Logistics'}
                         </Badge>
                       </div>
 
-                      <div className="text-[11px] text-slate-400">
-                        <span className="text-slate-300 font-medium">{lead.contactPerson}</span>
-                        <span className="block text-[10px] text-slate-500">{lead.phone}</span>
+                      <div className="space-y-1 text-[11px] text-slate-400">
+                        <span className="text-slate-300 font-medium block">{lead.contactPerson}</span>
+                        <span className="text-slate-500 block">{lead.phone}</span>
                       </div>
 
-                      <p className="text-[11px] text-slate-400 line-clamp-2">{lead.notes}</p>
+                      {lead.notes && <p className="text-[11px] text-slate-400 leading-5 line-clamp-3">{lead.notes}</p>}
 
-                      <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                      <div className="pt-3 border-t border-slate-700/80 flex items-center justify-between gap-2">
                         <span className="font-mono font-bold text-emerald-400 text-xs">
                           {formatCurrency(lead.estimatedMonthlyValue)}/mo
                         </span>
                         
                         {stage.id === 'won' ? (
+                          lead.convertedCustomerId ? (
+                            <Badge variant="success" size="sm">Customer created</Badge>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => convertLeadMutation.mutate(lead.id)}
+                              isLoading={convertLeadMutation.isPending}
+                              className="text-[10px] py-0.5 px-2 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                              leftIcon={<Sparkles className="h-3 w-3" />}
+                            >
+                              Convert Client
+                            </Button>
+                          )
+                        ) : stage.nextStage ? (
                           <Button
-                            size="sm"
+                            size="xs"
                             variant="outline"
-                            onClick={() => convertLeadMutation.mutate(lead.id)}
-                            isLoading={convertLeadMutation.isPending}
-                            className="text-[10px] py-0.5 px-2 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
-                            leftIcon={<Sparkles className="h-3 w-3" />}
+                            onClick={() => updateStageMutation.mutate({ leadId: lead.id, stage: stage.nextStage! })}
+                            isLoading={updateStageMutation.isPending}
+                            leftIcon={<ArrowRight className="h-3 w-3" />}
+                            title={`Move ${lead.companyName} to ${stage.nextStage}`}
                           >
-                            Convert Client
+                            {stage.actionLabel}
                           </Button>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              const nextIdx = stages.findIndex((s) => s.id === stage.id) + 1;
-                              if (nextIdx < stages.length) {
-                                updateStageMutation.mutate({ leadId: lead.id, stage: stages[nextIdx].id });
-                              }
-                            }}
-                            className="p-1 text-slate-400 hover:text-blue-400 transition-colors cursor-pointer"
-                            title="Advance Stage"
-                          >
-                            <ArrowRight className="h-3.5 w-3.5" />
-                          </button>
-                        )}
+                        ) : null}
                       </div>
                     </Card>
                   ))}
                 </div>
-              </div>
+              </section>
             );
           })}
         </div>
