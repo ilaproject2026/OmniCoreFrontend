@@ -1180,7 +1180,8 @@ export interface ShuttleSchedule {
   id: string;
   routeId: string;
   routeName: string;
-  shift: 'morning_inbound' | 'evening_outbound' | 'night_shift';
+  dayOfWeek?: string;
+  shift: string;
   departureTime: string;
   arrivalTime: string;
   busReg: string;
@@ -1188,7 +1189,7 @@ export interface ShuttleSchedule {
   driverPhone: string;
   occupancyCount: number;
   capacityTotal: number;
-  status: 'scheduled' | 'in_transit' | 'arrived' | 'delayed';
+  status: 'scheduled' | 'in_transit' | 'arrived' | 'delayed' | 'cancelled';
 }
 
 export interface ShuttlePassenger {

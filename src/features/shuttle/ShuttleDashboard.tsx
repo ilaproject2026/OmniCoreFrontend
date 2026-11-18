@@ -102,12 +102,9 @@ export const ShuttleDashboard: React.FC = () => {
 
   const [newScheduleForm, setNewScheduleForm] = useState({
     routeId: '',
-    shift: 'morning_inbound' as ShuttleSchedule['shift'],
+    dayOfWeek: 'WEEKDAYS',
     departureTime: '07:30',
     arrivalTime: '08:15',
-    busReg: 'BUS-SH-104',
-    driverName: 'Arthur Vance',
-    capacityTotal: 45,
   });
 
   // Stats calculation
@@ -152,13 +149,10 @@ export const ShuttleDashboard: React.FC = () => {
 
   const handleCreateSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
-    const route = routes.find((r) => r.id === newScheduleForm.routeId) || routes[0];
     try {
-      await createScheduleMutation.mutateAsync({
-        ...newScheduleForm,
-        routeName: route ? route.name : 'Corporate Express',
-      });
+      await createScheduleMutation.mutateAsync(newScheduleForm);
       setIsNewScheduleModalOpen(false);
+      setNewScheduleForm({ routeId: '', dayOfWeek: 'WEEKDAYS', departureTime: '07:30', arrivalTime: '08:15' });
     } catch (err) {
       console.error('Error creating schedule:', err);
     }
@@ -674,43 +668,47 @@ export const ShuttleDashboard: React.FC = () => {
         title="Schedule Daily Shift Transit"
       >
         <form onSubmit={handleCreateSchedule} className="space-y-4">
+          {createScheduleMutation.isError && <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">{(createScheduleMutation.error as Error)?.message || 'Could not create shuttle schedule.'}</p>}
           <Select
             label="Select Route"
             required
             value={newScheduleForm.routeId}
             onChange={(e) => setNewScheduleForm({ ...newScheduleForm, routeId: e.target.value })}
-            options={routes.map((r) => ({ label: `${r.routeCode} - ${r.name}`, value: r.id }))}
+            options={[{ label: '-- Select a route --', value: '' }, ...routes.map((r) => ({ label: `${r.routeCode} - ${r.name}`, value: r.id }))]}
           />
 
           <div className="grid grid-cols-2 gap-3">
             <Select
-              label="Shift Type"
-              value={newScheduleForm.shift}
-              onChange={(e) => setNewScheduleForm({ ...newScheduleForm, shift: e.target.value as any })}
+              label="Operating Days"
+              value={newScheduleForm.dayOfWeek}
+              onChange={(e) => setNewScheduleForm({ ...newScheduleForm, dayOfWeek: e.target.value })}
               options={[
-                { label: 'Morning Inbound', value: 'morning_inbound' },
-                { label: 'Evening Outbound', value: 'evening_outbound' },
-                { label: 'Night Shift', value: 'night_shift' },
+                { label: 'Weekdays', value: 'WEEKDAYS' },
+                { label: 'Every day', value: 'ALL' },
+                { label: 'Monday', value: 'MON' },
+                { label: 'Tuesday', value: 'TUE' },
+                { label: 'Wednesday', value: 'WED' },
+                { label: 'Thursday', value: 'THU' },
+                { label: 'Friday', value: 'FRI' },
+                { label: 'Saturday', value: 'SAT' },
+                { label: 'Sunday', value: 'SUN' },
               ]}
             />
-            <Input
-              label="Bus Capacity (Seats)"
-              type="number"
-              value={newScheduleForm.capacityTotal}
-              onChange={(e) => setNewScheduleForm({ ...newScheduleForm, capacityTotal: Number(e.target.value) })}
-            />
+            <p className="self-center text-xs text-slate-400">Select the days this recurring shuttle schedule runs.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <Input
               label="Departure Time"
               type="time"
+              required
               value={newScheduleForm.departureTime}
               onChange={(e) => setNewScheduleForm({ ...newScheduleForm, departureTime: e.target.value })}
             />
             <Input
               label="Arrival Time"
               type="time"
+              required
               value={newScheduleForm.arrivalTime}
               onChange={(e) => setNewScheduleForm({ ...newScheduleForm, arrivalTime: e.target.value })}
             />
@@ -720,7 +718,7 @@ export const ShuttleDashboard: React.FC = () => {
             <Button variant="outline" type="button" onClick={() => setIsNewScheduleModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit">
+            <Button variant="primary" type="submit" isLoading={createScheduleMutation.isPending}>
               Create Shift Schedule
             </Button>
           </div>

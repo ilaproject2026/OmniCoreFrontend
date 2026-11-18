@@ -2,6 +2,15 @@ import { apiClient } from './client';
 import { ShuttleOrganization, ShuttleRoute, ShuttleSchedule, ShuttlePassenger } from '../types';
 
 const rowsFrom = (data: any): any[] => Array.isArray(data) ? data : data?.results || data?.data || [];
+const errorMessage = (error: any): string => {
+  const body = error?.response?.data || {};
+  const fields = body?.error?.fields || body?.fields || body;
+  const details = fields && typeof fields === 'object'
+    ? Object.entries(fields).filter(([key]) => !['detail', 'message', 'code', 'success'].includes(key))
+        .flatMap(([field, value]) => (Array.isArray(value) ? value : [value]).map((message) => `${field}: ${String(message)}`)).join(' · ')
+    : '';
+  return details || body?.detail || body?.message || error?.message || 'Shuttle request failed.';
+};
 
 async function getAllRows(path: string): Promise<any[]> {
   const rows: any[] = [];
@@ -37,6 +46,15 @@ const normalizeRoute = (raw: any): ShuttleRoute => ({
   status: raw.is_active ? 'active' : 'cancelled',
 });
 
+const normalizeSchedule = (raw: any): ShuttleSchedule => ({
+  id: raw.id, routeId: raw.shuttle_route || '', routeName: raw.route_name || raw.route_code || 'Shuttle route',
+  shift: String(raw.day_of_week || 'WEEKDAYS').toLowerCase(), dayOfWeek: raw.day_of_week || 'WEEKDAYS',
+  departureTime: raw.departure_time || '', arrivalTime: raw.estimated_arrival_time || '',
+  busReg: raw.vehicle_registration || 'Unassigned', driverName: raw.driver_name || 'Unassigned',
+  driverPhone: raw.driver_phone || '', occupancyCount: Number(raw.occupancy_count || 0),
+  capacityTotal: Number(raw.capacity_total || 0), status: raw.is_active ? 'scheduled' : 'cancelled',
+});
+
 export const shuttleApi = {
   getOrganizations: async (): Promise<ShuttleOrganization[]> =>
     (await getAllRows('/shuttle/organizations/')).map(normalizeOrganization),
@@ -69,13 +87,21 @@ export const shuttleApi = {
   },
 
   getSchedules: async (): Promise<ShuttleSchedule[]> => {
-    const response = await apiClient.get('/shuttle/schedules/');
-    return response.data;
+    return (await getAllRows('/shuttle/schedules/')).map(normalizeSchedule);
   },
 
   createSchedule: async (data: Partial<ShuttleSchedule>): Promise<ShuttleSchedule> => {
-    const response = await apiClient.post('/shuttle/schedules/', data);
-    return response.data;
+    try {
+      const response = await apiClient.post<any>('/shuttle/schedules/', {
+        shuttle_route: data.routeId,
+        day_of_week: data.dayOfWeek || 'WEEKDAYS',
+        departure_time: data.departureTime,
+        estimated_arrival_time: data.arrivalTime,
+      });
+      return normalizeSchedule(response.data);
+    } catch (error) {
+      throw new Error(errorMessage(error));
+    }
   },
 
   updateScheduleStatus: async (
