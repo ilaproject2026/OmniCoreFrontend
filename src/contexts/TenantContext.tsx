@@ -86,12 +86,13 @@ interface TenantContextType {
   isVerticalEnabled: (vertical: VerticalType | VerticalType[]) => boolean;
   isModuleAllowedByVertical: (moduleKey: string) => boolean;
   updateTenantVerticals: (tenantId: string, verticals: VerticalType[]) => Promise<void>;
+  updateTenantProfile: (payload: { company_name: string; email: string; phone: string; address: string }) => Promise<void>;
   isModuleAllowedByPlan: (moduleKey: string) => boolean;
   getRequiredTierForModule: (moduleKey: string) => PackageTier;
   canCreateMultipleTenants: boolean;
   switchTenant: (newTenant: Tenant) => void;
-  setPackageTier: (tier: PackageTier) => void;
-  toggleAddon: (addonKey: AddonKey) => void;
+  setPackageTier: (tier: PackageTier) => Promise<void>;
+  toggleAddon: (addonKey: AddonKey) => Promise<void>;
   upgradePackage: (newTier: PackageTier, addons: AddonKey[]) => Promise<void>;
   changeTenantPackage: (tenantId: string, newTier: PackageTier, addons?: AddonKey[]) => Promise<void>;
   reactivateTenant: () => Promise<void>;
@@ -165,7 +166,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             apiClient.get<any>('/subscriptions/current/').then((response) => {
               const subscription = response.data?.subscription || response.data;
               const packageTier = normalizePackageTier(subscription?.package?.code || subscription?.package?.name);
-              if (!packageTier) return;
+              if (!subscription || subscription === null) return;
               setTenant((current) => {
                 if (current.id !== tenantId) return current;
                 const updated = {
@@ -173,7 +174,16 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                   verticals: packageTier === 'enterprise' ? ['all_verticals'] as VerticalType[] : current.verticals,
                   subscription: {
                     ...current.subscription,
-                    package: packageTier,
+                    ...(packageTier ? { package: packageTier } : {}),
+                    status: String(subscription.status || current.subscription.status).toLowerCase() as Tenant['subscription']['status'],
+                    billingCycle: (() => {
+                      const cycle = String(subscription.billing_cycle || current.subscription.billingCycle).toLowerCase();
+                      return (cycle === 'yearly' ? 'annually' : cycle) as Tenant['subscription']['billingCycle'];
+                    })(),
+                    enabledAddons: Array.isArray(subscription.addons)
+                      ? subscription.addons.map((addon: any) => String(addon.code || '').toLowerCase()).filter(Boolean)
+                      : current.subscription.enabledAddons,
+                    mrr: Number(subscription.package?.price_monthly ?? current.subscription.mrr ?? 0),
                   },
                 };
                 localStorage.setItem('omni_active_tenant', JSON.stringify(updated));
@@ -229,7 +239,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     clearQueryClientCache();
   }, []);
 
-  const setPackageTier = useCallback((tier: PackageTier) => {
+  const setPackageTier = useCallback(async (tier: PackageTier) => {
+    if (!tenant.id) throw new Error('An active tenant is required to update the subscription.');
+    await platformApi.upgradeTenantPackage(tenant.id, tier, tenant.subscription.enabledAddons || []);
     setTenant((prev) => {
       const updated = {
         ...prev,
@@ -241,15 +253,16 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       localStorage.setItem('omni_active_tenant', JSON.stringify(updated));
       return updated;
     });
-  }, []);
+  }, [tenant.id, tenant.subscription.enabledAddons]);
 
-  const toggleAddon = useCallback((addonKey: AddonKey) => {
+  const toggleAddon = useCallback(async (addonKey: AddonKey) => {
+    if (!tenant.id) throw new Error('An active tenant is required to update add-ons.');
+    const current = tenant.subscription.enabledAddons || [];
+    const updatedAddons = current.includes(addonKey)
+      ? current.filter((a) => a !== addonKey)
+      : [...current, addonKey];
+    await platformApi.upgradeTenantPackage(tenant.id, tenant.subscription?.package || 'standard', updatedAddons);
     setTenant((prev) => {
-      const current = prev.subscription.enabledAddons || [];
-      const updatedAddons = current.includes(addonKey)
-        ? current.filter((a) => a !== addonKey)
-        : [...current, addonKey];
-
       const updated = {
         ...prev,
         subscription: {
@@ -260,13 +273,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       localStorage.setItem('omni_active_tenant', JSON.stringify(updated));
       return updated;
     });
-  }, []);
+  }, [tenant.id, tenant.subscription.enabledAddons, tenant.subscription?.package]);
 
   const upgradePackage = useCallback(async (newTier: PackageTier, addons: AddonKey[]) => {
     const pkgDef = PACKAGES[newTier] || PACKAGES.standard;
-    if (tenant.id) {
-      await platformApi.upgradeTenantPackage(tenant.id, newTier, addons);
-    }
+    if (!tenant.id) throw new Error('An active tenant is required to update the subscription.');
+    await platformApi.upgradeTenantPackage(tenant.id, newTier, addons);
     setTenant((prev) => {
       const updated: Tenant = {
         ...prev,
@@ -512,15 +524,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const updateTenantVerticals = useCallback(
     async (tenantId: string, newVerticals: VerticalType[]): Promise<void> => {
-      try {
-        await platformApi.updateTenant(tenantId, { verticals: newVerticals });
-      } catch (err) {
-        console.warn('Backend update failed, applying local state update', err);
-      }
+      const savedTenant = await platformApi.updateTenantVerticals(tenantId, newVerticals);
       setTenant((prev) => {
         const updated: Tenant = {
           ...prev,
-          verticals: newVerticals,
+          verticals: savedTenant.verticals,
           updatedAt: new Date().toISOString().slice(0, 10),
         };
         try {
@@ -533,6 +541,22 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     },
     []
   );
+
+  const updateTenantProfile = useCallback(async (payload: { company_name: string; email: string; phone: string; address: string }) => {
+    const savedTenant = await platformApi.updateTenantProfile(payload);
+    setTenant((current) => {
+      if (current.id !== savedTenant.id) return current;
+      const updated = {
+        ...current,
+        name: savedTenant.name,
+        primaryContactEmail: savedTenant.primaryContactEmail,
+        primaryContactPhone: savedTenant.primaryContactPhone,
+        address: savedTenant.address,
+      };
+      localStorage.setItem('omni_active_tenant', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
 
   return (
     <TenantContext.Provider
@@ -552,6 +576,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         isVerticalEnabled,
         isModuleAllowedByVertical,
         updateTenantVerticals,
+        updateTenantProfile,
         isModuleAllowedByPlan,
         getRequiredTierForModule,
         canCreateMultipleTenants,

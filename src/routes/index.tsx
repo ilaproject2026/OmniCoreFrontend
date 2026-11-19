@@ -299,8 +299,8 @@ export const AppRoutes: React.FC = () => {
           path="settings"
           element={
             <PermissionGuard
-              permission="settings.manage"
-              fallback={<RoleAccessRestricted moduleName="Tenant Settings" requiredPermission="settings.manage" />}
+              permission="tenant.manage"
+              fallback={<RoleAccessRestricted moduleName="Tenant Settings" requiredPermission="tenant.manage" />}
             >
               <TenantSettings />
             </PermissionGuard>
