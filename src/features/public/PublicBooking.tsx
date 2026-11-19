@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useParams, useOutletContext, Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useParams, useOutletContext, Link, useSearchParams } from 'react-router-dom';
 import { publicPortalApi } from '../../api/publicPortal.api';
 import { TenantPublicCms } from '../../types';
 import {
@@ -23,32 +23,64 @@ import { Badge } from '../../components/common/Badge';
 
 import { useSubmitPublicBookingMutation } from '../../hooks/queries';
 
+const BOOKABLE_SERVICES = [
+  { id: 'courier_express', label: 'Express Parcel', icon: PackageCheck },
+  { id: 'corporate_shuttle', label: 'Shuttle Pooling', icon: Bus },
+  { id: 'freight_logistics', label: 'FTL / Heavy Freight', icon: Truck },
+  { id: 'cold_chain', label: 'Cold Chain Reefer', icon: Snowflake },
+];
+const SERVICE_ALIASES: Record<string, string[]> = {
+  courier_express: ['courier', 'courier_express', 'express', 'express_parcel'],
+  corporate_shuttle: ['shuttle', 'corporate_shuttle', 'passenger_transport'],
+  freight_logistics: ['freight', 'freight_logistics', 'transport'],
+  cold_chain: ['cold_chain', 'coldchain', 'reefer'],
+};
+
 export const PublicBooking: React.FC = () => {
   const { tenantSlug = 'workspace' } = useParams<{ tenantSlug: string }>();
-  const [selectedService, setSelectedService] = useState('courier_express');
+  const [searchParams] = useSearchParams();
+  const requestedService = (searchParams.get('service') || '').toLowerCase().replace(/[- ]/g, '_');
+  const requestedServiceId = BOOKABLE_SERVICES.find((service) => SERVICE_ALIASES[service.id].includes(requestedService))?.id;
+  const [selectedService, setSelectedService] = useState(requestedServiceId || 'courier_express');
   const outletCtx = useOutletContext<{ cms?: TenantPublicCms | null }>();
   const cms = outletCtx?.cms || null;
+  const configuredServices = (cms?.enabledVerticals || [])
+    .map((value) => value.toLowerCase().replace(/[- ]/g, '_'));
+  const serviceOptions = configuredServices.length
+    ? BOOKABLE_SERVICES.filter((service) => SERVICE_ALIASES[service.id].some((alias) => configuredServices.includes(alias)))
+    : BOOKABLE_SERVICES;
   const submitBookingMutation = useSubmitPublicBookingMutation();
   const isSubmitting = submitBookingMutation.isPending;
+
+  useEffect(() => {
+    if (serviceOptions.length && !serviceOptions.some((service) => service.id === selectedService)) {
+      setSelectedService(serviceOptions[0].id);
+    }
+  }, [selectedService, serviceOptions.map((service) => service.id).join('|')]);
 
   const [confirmation, setConfirmation] = useState<{
     bookingReference: string;
     message: string;
+    awbNumber?: string;
   } | null>(null);
 
   const [form, setForm] = useState({
     senderName: '',
     senderPhone: '',
     senderAddress: '',
+    senderCity: '',
+    senderPostalCode: '',
     receiverName: '',
     receiverPhone: '',
     receiverAddress: '',
+    receiverCity: '',
+    receiverPostalCode: '',
     pickupTime: '',
     estimatedWeightKg: 5,
-    cargoDescription: '',
     couponCode: '',
     coldChainMandate: '-20°C strictly mandated',
     passengerCount: 1,
+    cargoDescription: '',
     notes: '',
   });
 
@@ -70,6 +102,10 @@ export const PublicBooking: React.FC = () => {
       setSubmitError('Please enter the complete Pickup Address.');
       return;
     }
+    if (!form.senderCity.trim() || !form.senderPostalCode.trim()) {
+      setSubmitError('Please enter the pickup city and postal code.');
+      return;
+    }
     if (!form.receiverName.trim()) {
       setSubmitError('Please enter the Recipient Name.');
       return;
@@ -82,6 +118,10 @@ export const PublicBooking: React.FC = () => {
       setSubmitError('Please enter the Destination / Delivery Address.');
       return;
     }
+    if (!form.receiverPhone.trim() || !form.receiverCity.trim() || !form.receiverPostalCode.trim()) {
+      setSubmitError('Please enter the recipient phone, delivery city, and postal code.');
+      return;
+    }
 
     try {
       const res = await submitBookingMutation.mutateAsync({
@@ -90,17 +130,26 @@ export const PublicBooking: React.FC = () => {
         senderName: form.senderName,
         senderPhone: form.senderPhone,
         senderAddress: form.senderAddress,
+        senderCity: form.senderCity,
+        senderPostalCode: form.senderPostalCode,
         receiverName: form.receiverName,
         receiverPhone: form.receiverPhone,
         receiverAddress: form.receiverAddress,
+        receiverCity: form.receiverCity,
+        receiverPostalCode: form.receiverPostalCode,
         pickupTime: form.pickupTime,
         estimatedWeightKg: form.estimatedWeightKg,
+        passengerCount: form.passengerCount,
+        cargoDescription: form.cargoDescription,
+        temperatureRange: form.coldChainMandate,
+        couponCode: form.couponCode,
         notes: form.notes,
       });
 
       setConfirmation({
         bookingReference: res.bookingReference,
         message: res.message,
+        awbNumber: res.awbNumber,
       });
     } catch (err: any) {
       console.error('Booking submission failed:', err);
@@ -119,7 +168,7 @@ export const PublicBooking: React.FC = () => {
           Book Transport & Logistics Services
         </h1>
         <p className="text-xs text-slate-400">
-          Instant booking directly with <strong className="text-slate-200">{cms?.companyName || 'our logistics team'}</strong>.
+          Submit a service request to <strong className="text-slate-200">{cms?.companyName || 'our logistics team'}</strong>.
         </p>
       </div>
 
@@ -131,23 +180,25 @@ export const PublicBooking: React.FC = () => {
 
           <div>
             <span className="text-xs font-mono text-emerald-400 uppercase tracking-wider block font-bold">
-              Booking Received & Confirmed
+              Booking Request Received
             </span>
             <h2 className="text-3xl font-black text-white font-mono mt-1">
               {confirmation.bookingReference}
             </h2>
             <p className="text-xs text-slate-300 mt-2 max-w-md mx-auto">
-              {confirmation.message} An SMS and email notification with live GPS tracking links has been dispatched to your contact phone.
+              {confirmation.message}
             </p>
           </div>
 
           <div className="pt-4 flex flex-wrap justify-center gap-3">
-            <Link
-              to={`/public/${tenantSlug}/track?awb=${confirmation.bookingReference}`}
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors"
-            >
-              Track Booking Status
-            </Link>
+            {confirmation.awbNumber && (
+              <Link
+                to={`/public/${tenantSlug}/track?awb=${encodeURIComponent(confirmation.awbNumber)}`}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors"
+              >
+                Track Shipment
+              </Link>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -157,15 +208,19 @@ export const PublicBooking: React.FC = () => {
                   senderName: '',
                   senderPhone: '',
                   senderAddress: '',
+                  senderCity: '',
+                  senderPostalCode: '',
                   receiverName: '',
                   receiverPhone: '',
                   receiverAddress: '',
+                  receiverCity: '',
+                  receiverPostalCode: '',
                   pickupTime: '',
                   estimatedWeightKg: 5,
-                  cargoDescription: '',
                   couponCode: '',
                   coldChainMandate: '-20°C strictly mandated',
                   passengerCount: 1,
+                  cargoDescription: '',
                   notes: '',
                 });
               }}
@@ -182,6 +237,21 @@ export const PublicBooking: React.FC = () => {
               <span>{submitError}</span>
             </div>
           )}
+          {cms?.phoneVerificationRequired && (
+            <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+              This portal requires phone verification, but verification has not been configured. Please contact the service provider to place this request.
+            </div>
+          )}
+          {!serviceOptions.length && (
+            <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+              This provider has not enabled a service that can be booked from this portal.
+            </div>
+          )}
+          {cms?.isPublished === false && (
+            <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+              This provider has not published its public website yet, so booking requests are unavailable.
+            </div>
+          )}
 
           {/* Vertical Selector */}
           <div>
@@ -189,12 +259,7 @@ export const PublicBooking: React.FC = () => {
               Select Vertical Service Category
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { id: 'courier_express', label: 'Express Parcel', icon: PackageCheck },
-                { id: 'corporate_shuttle', label: 'Shuttle Pooling', icon: Bus },
-                { id: 'freight_logistics', label: 'FTL / Heavy Freight', icon: Truck },
-                { id: 'cold_chain', label: 'Cold Chain Reefer', icon: Snowflake },
-              ].map((svc) => {
+              {serviceOptions.map((svc) => {
                 const Icon = svc.icon;
                 const isSelected = selectedService === svc.id;
                 return (
@@ -237,13 +302,14 @@ export const PublicBooking: React.FC = () => {
                 onChange={(e) => setForm({ ...form, senderPhone: e.target.value })}
               />
             </div>
-            <Input
-              label="Pickup Address / Departure Location"
-              required
-              placeholder="Full street address, building dock or transit station"
-              value={form.senderAddress}
-              onChange={(e) => setForm({ ...form, senderAddress: e.target.value })}
-            />
+            <Input label="Pickup Address / Departure Location" required placeholder="Street address, dock or station"
+              value={form.senderAddress} onChange={(e) => setForm({ ...form, senderAddress: e.target.value })} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input label="Pickup City" required value={form.senderCity}
+                onChange={(e) => setForm({ ...form, senderCity: e.target.value })} />
+              <Input label="Pickup Postal Code" required value={form.senderPostalCode}
+                onChange={(e) => setForm({ ...form, senderPostalCode: e.target.value })} />
+            </div>
           </div>
 
           {/* Delivery / Destination Details */}
@@ -261,18 +327,20 @@ export const PublicBooking: React.FC = () => {
               />
               <Input
                 label="Recipient Phone"
+                required
                 placeholder="+1 555-9082"
                 value={form.receiverPhone}
                 onChange={(e) => setForm({ ...form, receiverPhone: e.target.value })}
               />
             </div>
-            <Input
-              label="Dropoff / Delivery Address"
-              required
-              placeholder="Delivery destination address"
-              value={form.receiverAddress}
-              onChange={(e) => setForm({ ...form, receiverAddress: e.target.value })}
-            />
+            <Input label="Dropoff / Delivery Address" required placeholder="Delivery destination address"
+              value={form.receiverAddress} onChange={(e) => setForm({ ...form, receiverAddress: e.target.value })} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input label="Delivery City" required value={form.receiverCity}
+                onChange={(e) => setForm({ ...form, receiverCity: e.target.value })} />
+              <Input label="Delivery Postal Code" required value={form.receiverPostalCode}
+                onChange={(e) => setForm({ ...form, receiverPostalCode: e.target.value })} />
+            </div>
           </div>
 
           {/* Vertical specifics */}
@@ -284,6 +352,9 @@ export const PublicBooking: React.FC = () => {
               <Input
                 label="Estimated Weight (kg)"
                 type="number"
+                min={0.01}
+                step={0.01}
+                required
                 value={form.estimatedWeightKg}
                 onChange={(e) => setForm({ ...form, estimatedWeightKg: Number(e.target.value) })}
               />
@@ -294,12 +365,21 @@ export const PublicBooking: React.FC = () => {
                 onChange={(e) => setForm({ ...form, pickupTime: e.target.value })}
               />
               <Input
-                label="Promotional Coupon Code"
-                placeholder="e.g. PROMO20"
+                label="Promotion Code (for staff review)"
+                placeholder="Optional"
                 value={form.couponCode}
                 onChange={(e) => setForm({ ...form, couponCode: e.target.value })}
               />
             </div>
+            {selectedService !== 'corporate_shuttle' && (
+              <Input label="Cargo Description" required={selectedService !== 'courier_express'}
+                value={form.cargoDescription} onChange={(e) => setForm({ ...form, cargoDescription: e.target.value })}
+                placeholder="Describe the shipment or freight" />
+            )}
+            {selectedService === 'corporate_shuttle' && (
+              <Input label="Passenger Count" type="number" min={1} step={1} required value={form.passengerCount}
+                onChange={(e) => setForm({ ...form, passengerCount: Number(e.target.value) })} />
+            )}
             {selectedService === 'cold_chain' && (
               <Input
                 label="Mandated Temperature Range"
@@ -307,6 +387,12 @@ export const PublicBooking: React.FC = () => {
                 onChange={(e) => setForm({ ...form, coldChainMandate: e.target.value })}
               />
             )}
+            <div>
+              <label className="text-xs font-semibold text-slate-300 block mb-1">Additional Notes (optional)</label>
+              <textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 p-2.5 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-hidden"
+                placeholder="Access instructions or other details for the operations team" />
+            </div>
           </div>
 
           <div className="pt-4 border-t border-slate-800 flex justify-end">
@@ -314,11 +400,12 @@ export const PublicBooking: React.FC = () => {
               variant="primary"
               size="lg"
               type="submit"
+              disabled={Boolean(cms?.phoneVerificationRequired) || cms?.isPublished === false || !serviceOptions.length}
               isLoading={isSubmitting}
               className="bg-emerald-600 hover:bg-emerald-500 font-bold text-sm px-8"
               icon={<CheckCircle2 className="h-4 w-4" />}
             >
-              Submit Booking & Generate AWB
+              {selectedService === 'courier_express' ? 'Submit Shipment & Generate AWB' : 'Submit Service Request'}
             </Button>
           </div>
         </form>

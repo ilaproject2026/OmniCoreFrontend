@@ -251,9 +251,14 @@ export const AppRoutes: React.FC = () => {
           element={
             <FeatureGuard
               module="insurance"
-              fallback={<PlanFeatureRestricted moduleName="Insurance & Claims" requiredTier="standard" />}
+              fallback={<PlanFeatureRestricted moduleName="Insurance & Claims" requiredTier="corporate" />}
             >
-              <InsuranceHub />
+              <PermissionGuard
+                permission="insurance.view"
+                fallback={<RoleAccessRestricted moduleName="Insurance & Claims" requiredPermission="insurance.view" />}
+              >
+                <InsuranceHub />
+              </PermissionGuard>
             </FeatureGuard>
           }
         />

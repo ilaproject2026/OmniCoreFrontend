@@ -802,6 +802,7 @@ export interface InsurancePolicy {
 export interface InsuranceClaim {
   id: string;
   claimNumber: string;
+  policyId?: string;
   policyNumber: string;
   vehicleReg: string;
   incidentDate: string;
@@ -817,13 +818,18 @@ export interface MarketingCampaign {
   name: string;
   channel: 'Google Ads' | 'LinkedIn B2B' | 'Industry Expo' | 'Cold Outreach' | 'Referral';
   verticalTarget: VerticalType;
+  startDate?: string;
+  endDate?: string;
   budget: number;
   spend: number;
+  impressions?: number;
+  clicks?: number;
+  attributedRevenue?: number;
   leadsGenerated: number;
   conversions: number;
   cac: number;
   roi: number;
-  status: 'active' | 'paused' | 'completed';
+  status: 'draft' | 'active' | 'paused' | 'completed';
 }
 
 // ----------------- Notifications -----------------
@@ -1258,6 +1264,8 @@ export interface ShipmentConsolidationGroup {
 // ============================================================
 export interface SocialPost {
   id: string;
+  socialAccountId?: string;
+  socialCampaignId?: string;
   channel: 'Instagram' | 'Facebook' | 'LinkedIn' | 'Google';
   campaignName: string;
   caption: string;
@@ -1277,6 +1285,9 @@ export interface SocialPost {
 export interface TenantPublicCms {
   tenantSlug: string;
   companyName: string;
+  isPublished?: boolean;
+  enabledVerticals?: string[];
+  phoneVerificationRequired?: boolean;
   tagline: string;
   logoUrl?: string;
   primaryColor: string;
@@ -1288,6 +1299,7 @@ export interface TenantPublicCms {
   heroSubtitle: string;
   enabledServices: {
     id: string;
+    vertical?: string;
     title: string;
     description: string;
     icon: string;

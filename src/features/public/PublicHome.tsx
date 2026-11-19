@@ -83,11 +83,6 @@ export const PublicHome: React.FC = () => {
                 Track Live
               </button>
             </form>
-            <div className="mt-2 flex items-center justify-center gap-3 text-[11px] text-slate-500 font-mono">
-              <span>Try sample: <strong className="text-blue-400 cursor-pointer" onClick={() => setAwbInput('AWB-EXP-88910')}>AWB-EXP-88910</strong></span>
-              <span>•</span>
-              <span><strong className="text-blue-400 cursor-pointer" onClick={() => setAwbInput('AWB-EXP-88912')}>AWB-EXP-88912 (Delivered)</strong></span>
-            </div>
           </div>
 
           <div className="pt-2 flex flex-wrap items-center justify-center gap-4">
@@ -126,7 +121,7 @@ export const PublicHome: React.FC = () => {
 
               <div className="mt-6 pt-4 border-t border-slate-800/80">
                 <Link
-                  to={`/public/${tenantSlug}/book`}
+                  to={`/public/${tenantSlug}/book?service=${encodeURIComponent(svc.vertical || '')}`}
                   className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
                 >
                   Book this vertical <ArrowRight className="h-3.5 w-3.5" />
