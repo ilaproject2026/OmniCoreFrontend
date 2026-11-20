@@ -1384,7 +1384,7 @@ export const CourierDashboard: React.FC = () => {
             <Button variant="outline" type="button" onClick={() => setIsSortModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit" icon={<QrCode className="h-4 w-4" />}>
+            <Button variant="primary" type="submit" isLoading={processSortingMutation.isPending} icon={<QrCode className="h-4 w-4" />}>
               Process Scan & Route
             </Button>
           </div>

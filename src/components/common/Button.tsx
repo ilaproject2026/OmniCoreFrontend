@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { cn } from '../../lib/utils';
 import { Loader2 } from 'lucide-react';
 
@@ -23,10 +23,13 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       icon,
       children,
       disabled,
+      onClick,
       ...props
     },
     ref
   ) => {
+    const [isClickLoading, setIsClickLoading] = useState(false);
+    const isBusy = isLoading || isClickLoading;
     const activeLeftIcon = icon || leftIcon;
     const baseStyles =
       'inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#0b0f17] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer select-none rounded-lg';
@@ -71,16 +74,28 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         className={cn(baseStyles, variants[variant], sizes[size], className)}
-        disabled={disabled || isLoading}
+        disabled={disabled || isBusy}
+        aria-busy={isBusy || undefined}
+        onClick={async (event) => {
+          const result = onClick?.(event) as unknown;
+          if (result && typeof (result as Promise<unknown>).then === 'function') {
+            setIsClickLoading(true);
+            try {
+              await result;
+            } finally {
+              setIsClickLoading(false);
+            }
+          }
+        }}
         {...props}
       >
-        {isLoading ? (
+        {isBusy ? (
           <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
           activeLeftIcon && <span className="shrink-0">{renderIconNode(activeLeftIcon)}</span>
         )}
         {children}
-        {!isLoading && rightIcon && <span className="shrink-0">{renderIconNode(rightIcon)}</span>}
+        {!isBusy && rightIcon && <span className="shrink-0">{renderIconNode(rightIcon)}</span>}
       </button>
     );
   }

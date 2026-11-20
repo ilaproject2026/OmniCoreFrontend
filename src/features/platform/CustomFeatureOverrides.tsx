@@ -285,7 +285,7 @@ export const CustomFeatureOverrides: React.FC = () => {
             <Button variant="outline" type="button" onClick={() => setIsAddModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit" icon={<Zap className="h-4 w-4" />}>
+            <Button variant="primary" type="submit" isLoading={createOverrideMutation.isPending} icon={<Zap className="h-4 w-4" />}>
               Grant Feature Entitlement
             </Button>
           </div>

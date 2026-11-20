@@ -34,9 +34,6 @@ const readPhoneValue = (value: string, fallbackRegion = DEFAULT_PHONE_REGION) =>
   return { region: fallbackRegion, localDigits: digits.slice(0, 10) };
 };
 
-const countryFlag = (region: string) =>
-  String.fromCodePoint(...[...region].map((character) => 127397 + character.charCodeAt(0)));
-
 export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
   label,
   value,
@@ -57,7 +54,6 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
   const currentOnChange = useRef(onChange);
   currentRegion.current = region;
   currentOnChange.current = onChange;
-  const country = getPhoneCountry(region);
   const hasInvalidLength = localDigits.length > 0 && localDigits.length !== 10;
   const validationMessage = hasInvalidLength ? 'Enter exactly 10 digits, without the country code.' : '';
 
@@ -116,15 +112,14 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
           value={region}
           onChange={handleCountryChange}
           disabled={disabled}
-          className="max-w-[48%] border-r border-slate-700 bg-slate-900 px-2.5 py-2 text-sm text-slate-200 outline-none sm:max-w-[42%]"
+          className="max-w-[38%] border-r border-slate-700 bg-slate-900 px-2.5 py-2 text-sm text-slate-200 outline-none sm:max-w-[30%]"
         >
           {PHONE_COUNTRIES.map((option) => (
             <option key={option.region} value={option.region}>
-              {countryFlag(option.region)} {option.name} (+{option.callingCode})
+              {option.region} +{option.callingCode}
             </option>
           ))}
         </select>
-        <span aria-hidden="true" className="flex items-center px-2 text-sm text-slate-400">+{country.callingCode}</span>
         <input
           id={inputId}
           type="tel"

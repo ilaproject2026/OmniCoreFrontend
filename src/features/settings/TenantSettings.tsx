@@ -7,7 +7,7 @@ import { Input } from '../../components/common/Input';
 import { PhoneNumberInput } from '../../components/common/PhoneNumberInput';
 import { Select } from '../../components/common/Select';
 import { Tabs } from '../../components/common/Tabs';
-import { ADDONS, VERTICALS, PACKAGES } from '../../config/constants';
+import { ADDONS, VERTICALS, PACKAGES, TIER_RANK } from '../../config/constants';
 import { PackageTier, AddonKey, VerticalType } from '../../types';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -160,7 +160,9 @@ export const TenantSettings: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
-              {(['basic', 'standard', 'corporate', 'enterprise'] as PackageTier[]).map((tier) => {
+              {(['basic', 'standard', 'corporate', 'enterprise'] as PackageTier[])
+                .filter((tier) => TIER_RANK[tier] >= TIER_RANK[packageTier])
+                .map((tier) => {
                 const isSelected = packageTier === tier;
                 const pkg = PACKAGES[tier];
 
@@ -185,7 +187,7 @@ export const TenantSettings: React.FC = () => {
                     </div>
                   </div>
                 );
-              })}
+                })}
             </div>
           </Card>
 
