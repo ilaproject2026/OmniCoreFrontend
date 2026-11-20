@@ -148,10 +148,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       path: '/app/contracts',
       icon: FileText,
       moduleKey: 'contracts',
-      isAccessible: can('contracts.view'),
+      isAccessible: can('contract.view'),
       isPlanAllowed: isModuleAllowedByPlan('contracts'),
       requiredTier: getRequiredTierForModule('contracts'),
-      requiredPermission: 'contracts.view',
+      requiredPermission: 'contract.view',
     },
     {
       label: 'Workshop & Maintenance',
@@ -249,9 +249,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       path: '/app/settings',
       icon: Settings,
       moduleKey: 'settings',
-      isAccessible: can('settings.manage') || user?.tenantRole === 'tenant_admin' || user?.tenantRole === 'customer_admin' || Boolean(user?.isPlatformUser || user?.platformRole === 'omnicore_admin' || user?.platformRole === 'super_admin'),
+      isAccessible: can('tenant.manage') || user?.tenantRole === 'tenant_admin' || user?.tenantRole === 'customer_admin' || Boolean(user?.isPlatformUser || user?.platformRole === 'omnicore_admin' || user?.platformRole === 'super_admin'),
       isPlanAllowed: true,
-      requiredPermission: 'settings.manage',
+      requiredPermission: 'tenant.manage',
     },
   ];
 

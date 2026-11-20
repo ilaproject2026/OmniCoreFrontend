@@ -35,6 +35,7 @@ import {
   Activity,
   CheckCircle2,
   Trash2,
+  Pencil,
   ExternalLink,
   FileText,
   User,
@@ -57,6 +58,7 @@ import {
   Wind,
 } from 'lucide-react';
 import { formatDate, formatCurrency } from '../../lib/utils';
+import { useTenant } from '../../contexts/TenantContext';
 
 export interface VehicleDetailsDrawerProps {
   vehicle: Vehicle | null;
@@ -101,6 +103,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
   onVehicleUpdated,
 }) => {
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
   const [activeTab, setActiveTab] = useState('overview');
 
   // Synchronize local vehicle state
@@ -110,6 +113,10 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
   const [isUploadDocModalOpen, setIsUploadDocModalOpen] = useState(false);
   const [isDriverModalOpen, setIsDriverModalOpen] = useState(false);
   const [isMaintModalOpen, setIsMaintModalOpen] = useState(false);
+  const [isVehicleEditModalOpen, setIsVehicleEditModalOpen] = useState(false);
+  const [editingDocumentId, setEditingDocumentId] = useState<string | null>(null);
+  const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(null);
+  const [vehicleEditForm, setVehicleEditForm] = useState<Partial<Vehicle>>({});
 
   // Status feedback toast
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
@@ -121,7 +128,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
     issueDate: new Date().toISOString().split('T')[0],
     expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     verificationStatus: 'verified' as VehicleDocument['verificationStatus'],
-    fileName: 'vehicle_doc_scan.pdf',
+    fileName: '',
   });
 
   // Driver Assignment Form State (dedicated to modal)
@@ -153,15 +160,21 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
   }, [vehicle]);
 
   // Query available drivers
-  const { data: drivers = [] } = useQuery({
-    queryKey: ['drivers'],
+  const { data: drivers = [], refetch: refetchDrivers } = useQuery({
+    queryKey: ['drivers', tenant.id],
     queryFn: () => driversApi.getDrivers(),
+    enabled: isOpen,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   // Query all vehicles to enforce unique driver assignments and trip status tracking
-  const { data: allVehicles = [] } = useQuery({
-    queryKey: ['fleetVehicles'],
+  const { data: allVehicles = [], refetch: refetchAllVehicles } = useQuery({
+    queryKey: ['fleetVehicles', tenant.id],
     queryFn: () => fleetApi.getVehicles(),
+    enabled: isOpen,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   // Query maintenance records
@@ -327,41 +340,51 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
     setTimeout(() => setActionFeedback(null), 4000);
   };
 
+  const editVehicleMutation = useMutation({
+    mutationFn: () => {
+      if (!currentVehicle) throw new Error('No vehicle selected');
+      return fleetApi.updateVehicle(currentVehicle.id, vehicleEditForm);
+    },
+    onSuccess: (updatedVehicle) => {
+      commitVehicleUpdate(updatedVehicle, 'Vehicle details updated successfully.');
+      setIsVehicleEditModalOpen(false);
+    },
+  });
+
   // Upload Document Mutation
   const uploadDocMutation = useMutation({
     mutationFn: async () => {
       if (!currentVehicle) throw new Error('No vehicle selected');
-      const isExpired = new Date(docForm.expiryDate) < new Date();
-      const isExpiringSoon =
-        !isExpired &&
-        new Date(docForm.expiryDate).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000;
-
-      const newDoc: VehicleDocument = {
-        id: 'doc_' + Math.random().toString(36).substring(2, 9),
+      if (editingDocumentId) {
+        return fleetApi.updateVehicleDocument(currentVehicle.id, editingDocumentId, {
+          type: docForm.type,
+          documentNumber: docForm.documentNumber,
+          issueDate: docForm.issueDate,
+          expiryDate: docForm.expiryDate,
+          file: selectedDocumentFile || undefined,
+        });
+      }
+      if (!selectedDocumentFile) throw new Error('Select a document file to upload.');
+      return fleetApi.createVehicleDocument(currentVehicle.id, {
         type: docForm.type,
-        documentNumber: docForm.documentNumber || `DOC-${Math.floor(100000 + Math.random() * 900000)}`,
+        documentNumber: docForm.documentNumber,
         issueDate: docForm.issueDate,
         expiryDate: docForm.expiryDate,
-        fileUrl: `/uploads/docs/${docForm.fileName}`,
-        isExpired,
-        isExpiringSoon,
-        verificationStatus: docForm.verificationStatus,
-      };
-
-      const updatedDocs = [newDoc, ...(currentVehicle.documents || [])];
-      await fleetApi.updateVehicle(currentVehicle.id, { documents: updatedDocs });
-      return { ...currentVehicle, documents: updatedDocs };
+        file: selectedDocumentFile,
+      });
     },
     onSuccess: (updatedVehicle) => {
-      commitVehicleUpdate(updatedVehicle, 'New statutory document uploaded and verified.');
+      commitVehicleUpdate(updatedVehicle, editingDocumentId ? 'Vehicle document updated successfully.' : 'Vehicle document uploaded successfully.');
       setIsUploadDocModalOpen(false);
+      setEditingDocumentId(null);
+      setSelectedDocumentFile(null);
       setDocForm({
         type: 'insurance',
         documentNumber: '',
         issueDate: new Date().toISOString().split('T')[0],
         expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         verificationStatus: 'verified',
-        fileName: 'vehicle_doc_scan.pdf',
+        fileName: '',
       });
     },
   });
@@ -369,18 +392,21 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
   // Delete Document Handler
   const handleDeleteDocument = async (docId: string) => {
     if (!currentVehicle) return;
-    const updatedDocs = currentVehicle.documents.filter((d) => d.id !== docId);
-    await fleetApi.updateVehicle(currentVehicle.id, { documents: updatedDocs });
-    commitVehicleUpdate(
-      { ...currentVehicle, documents: updatedDocs },
-      'Document removed from regulatory roster.'
-    );
+    const updatedVehicle = await fleetApi.deleteVehicleDocument(currentVehicle.id, docId);
+    commitVehicleUpdate(updatedVehicle, 'Document removed from regulatory roster.');
   };
 
   // Driver Assignment Mutation
   const assignDriverMutation = useMutation({
     mutationFn: async () => {
       if (!currentVehicle) throw new Error('No vehicle selected');
+      const runStep = async (label: string, operation: () => Promise<unknown>) => {
+        try {
+          await operation();
+        } catch (error: any) {
+          throw new Error(`${label}: ${error?.message || 'request failed'}`);
+        }
+      };
 
       // Rule 1: Prohibit changing driver while vehicle is currently on a trip
       if (currentVehicle.status === 'on_trip') {
@@ -390,17 +416,12 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
       // Handle unassignment
       if (modalDriverId === 'unassigned') {
         if (currentVehicle.assignedDriverId) {
-          await driversApi.updateDriver(currentVehicle.assignedDriverId, {
+          await runStep('Could not clear the previous driver assignment', () => driversApi.updateDriver(currentVehicle.assignedDriverId!, {
             assignedVehicleId: undefined,
             assignedVehicleReg: undefined,
             status: 'available',
-          });
+          }));
         }
-
-        await fleetApi.updateVehicle(currentVehicle.id, {
-          assignedDriverId: undefined,
-          assignedDriverName: undefined,
-        });
 
         return {
           ...currentVehicle,
@@ -426,36 +447,23 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
         (v) => v.assignedDriverId === modalDriverId && v.id !== currentVehicle.id
       );
 
-      if (previousVehicleOfDriver) {
-        await fleetApi.updateVehicle(previousVehicleOfDriver.id, {
-          assignedDriverId: undefined,
-          assignedDriverName: undefined,
-        });
-      }
-
       // If current vehicle previously had a different driver, unbind that old driver
       if (currentVehicle.assignedDriverId && currentVehicle.assignedDriverId !== modalDriverId) {
-        await driversApi.updateDriver(currentVehicle.assignedDriverId, {
+        await runStep('Could not clear the vehicle’s previous driver', () => driversApi.updateDriver(currentVehicle.assignedDriverId!, {
           assignedVehicleId: undefined,
           assignedVehicleReg: undefined,
           status: 'available',
-        });
+        }));
       }
 
       const driverName = `${driver.firstName} ${driver.lastName}`;
 
-      // Assign driver to this vehicle
-      await fleetApi.updateVehicle(currentVehicle.id, {
-        assignedDriverId: modalDriverId,
-        assignedDriverName: driverName,
-      });
-
-      // Bind driver to this vehicle
-      await driversApi.updateDriver(driver.id, {
+      // The driver's current_vehicle FK is the source of truth for vehicle assignment.
+      await runStep(`Could not assign ${driver.firstName} ${driver.lastName} in this tenant`, () => driversApi.updateDriver(driver.id, {
         assignedVehicleId: currentVehicle.id,
         assignedVehicleReg: currentVehicle.registrationNumber,
         status: 'available',
-      });
+      }));
 
       return {
         ...currentVehicle,
@@ -573,10 +581,58 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
     { id: 'history', label: 'Audit Log', icon: <History className="h-3.5 w-3.5" /> },
   ];
 
-  const handleOpenDriverModal = () => {
+  const handleOpenDriverModal = async () => {
     if (isVehicleOnTrip) return;
+    await Promise.all([refetchDrivers(), refetchAllVehicles()]);
     setModalDriverId(currentVehicle.assignedDriverId || 'unassigned');
     setIsDriverModalOpen(true);
+  };
+
+  const openVehicleEditModal = () => {
+    setVehicleEditForm({
+      registrationNumber: currentVehicle.registrationNumber,
+      make: currentVehicle.make,
+      model: currentVehicle.model,
+      year: currentVehicle.year,
+      vin: currentVehicle.vin,
+      odometerKm: currentVehicle.odometerKm,
+      capacityKg: currentVehicle.capacityKg,
+      fuelType: currentVehicle.fuelType,
+      financingStatus: currentVehicle.financingStatus,
+      status: currentVehicle.status,
+    });
+    editVehicleMutation.reset();
+    setIsVehicleEditModalOpen(true);
+  };
+
+  const openDocumentEditModal = (document: VehicleDocument) => {
+    setEditingDocumentId(document.id);
+    setSelectedDocumentFile(null);
+    setDocForm({
+      type: document.type,
+      documentNumber: document.documentNumber,
+      issueDate: document.issueDate,
+      expiryDate: document.expiryDate,
+      verificationStatus: document.verificationStatus,
+      fileName: '',
+    });
+    uploadDocMutation.reset();
+    setIsUploadDocModalOpen(true);
+  };
+
+  const openNewDocumentModal = () => {
+    setEditingDocumentId(null);
+    setSelectedDocumentFile(null);
+    setDocForm({
+      type: 'insurance',
+      documentNumber: '',
+      issueDate: new Date().toISOString().split('T')[0],
+      expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      verificationStatus: 'verified',
+      fileName: '',
+    });
+    uploadDocMutation.reset();
+    setIsUploadDocModalOpen(true);
   };
 
   return (
@@ -608,7 +664,14 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
           )}
 
           {/* Navigation Tabs */}
-          <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} variant="pills" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} variant="pills" />
+            </div>
+            <Button size="sm" variant="outline" leftIcon={<Pencil className="h-3.5 w-3.5" />} onClick={openVehicleEditModal}>
+              Edit Vehicle
+            </Button>
+          </div>
 
           {/* ========================================================================= */}
           {/* TAB 1: OVERVIEW (ALL VEHICLE DETAILS)                                      */}
@@ -986,7 +1049,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
                       size="sm"
                       variant="outline"
                       leftIcon={<Upload className="h-3.5 w-3.5" />}
-                      onClick={() => setIsUploadDocModalOpen(true)}
+                      onClick={openNewDocumentModal}
                     >
                       Upload Document
                     </Button>
@@ -1087,7 +1150,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
                   size="sm"
                   variant="primary"
                   leftIcon={<Upload className="h-3.5 w-3.5" />}
-                  onClick={() => setIsUploadDocModalOpen(true)}
+                  onClick={openNewDocumentModal}
                 >
                   Upload Document
                 </Button>
@@ -1104,7 +1167,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
                     size="sm"
                     variant="outline"
                     className="mt-3"
-                    onClick={() => setIsUploadDocModalOpen(true)}
+                    onClick={openNewDocumentModal}
                   >
                     Upload First Document
                   </Button>
@@ -1131,10 +1194,9 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
                         {doc.fileUrl && (
                           <>
                             <span>•</span>
-                            <span className="text-blue-400 flex items-center gap-1 font-mono">
-                              <FileCheck className="h-3 w-3" />
-                              Attached
-                            </span>
+                            <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-300 flex items-center gap-1 font-mono">
+                              <ExternalLink className="h-3 w-3" /> Open file
+                            </a>
                           </>
                         )}
                       </div>
@@ -1148,6 +1210,17 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
                       ) : (
                         <Badge variant="success">Verified Valid</Badge>
                       )}
+
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-blue-300 hover:bg-blue-500/10 p-1.5 h-8 w-8"
+                        onClick={() => openDocumentEditModal(doc)}
+                        title="Edit document details or replace file"
+                        aria-label={`Edit ${doc.type.replace(/_/g, ' ')} document`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
 
                       <Button
                         size="sm"
@@ -2079,14 +2152,45 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
         </div>
       </Drawer>
 
+      <Modal
+        isOpen={isVehicleEditModalOpen}
+        onClose={() => setIsVehicleEditModalOpen(false)}
+        title="Edit Vehicle Details"
+        description={`Update the saved details for ${currentVehicle.registrationNumber}.`}
+        size="lg"
+      >
+        <form onSubmit={(event) => { event.preventDefault(); editVehicleMutation.mutate(); }} className="space-y-4 text-xs">
+          {editVehicleMutation.isError && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-rose-300">{(editVehicleMutation.error as Error).message}</p>}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input label="Registration Number" required value={vehicleEditForm.registrationNumber || ''} onChange={(e) => setVehicleEditForm({ ...vehicleEditForm, registrationNumber: e.target.value })} />
+            <Input label="VIN" required value={vehicleEditForm.vin || ''} onChange={(e) => setVehicleEditForm({ ...vehicleEditForm, vin: e.target.value })} />
+            <Input label="Make" required value={vehicleEditForm.make || ''} onChange={(e) => setVehicleEditForm({ ...vehicleEditForm, make: e.target.value })} />
+            <Input label="Model" required value={vehicleEditForm.model || ''} onChange={(e) => setVehicleEditForm({ ...vehicleEditForm, model: e.target.value })} />
+            <Input label="Year" type="number" min="1990" max={new Date().getFullYear() + 1} value={vehicleEditForm.year || ''} onChange={(e) => setVehicleEditForm({ ...vehicleEditForm, year: Number(e.target.value) })} />
+            <Input label="Odometer (km)" type="number" min="0" value={vehicleEditForm.odometerKm ?? 0} onChange={(e) => setVehicleEditForm({ ...vehicleEditForm, odometerKm: Number(e.target.value) })} />
+            <Input label="Capacity (kg)" type="number" min="0" value={vehicleEditForm.capacityKg ?? 0} onChange={(e) => setVehicleEditForm({ ...vehicleEditForm, capacityKg: Number(e.target.value) })} />
+            <Select label="Fuel Type" value={vehicleEditForm.fuelType || 'diesel'} onChange={(e) => setVehicleEditForm({ ...vehicleEditForm, fuelType: e.target.value as Vehicle['fuelType'] })} options={[
+              { value: 'diesel', label: 'Diesel' }, { value: 'petrol', label: 'Petrol' }, { value: 'cng', label: 'CNG' }, { value: 'ev', label: 'Electric' }, { value: 'hybrid', label: 'Hybrid' },
+            ]} />
+            <Select label="Ownership" value={vehicleEditForm.financingStatus || 'owned'} onChange={(e) => setVehicleEditForm({ ...vehicleEditForm, financingStatus: e.target.value as Vehicle['financingStatus'] })} options={[
+              { value: 'owned', label: 'Owned' }, { value: 'leased', label: 'Leased' }, { value: 'financed', label: 'Financed' },
+            ]} />
+          </div>
+          <div className="flex justify-end gap-2 border-t border-slate-800 pt-4">
+            <Button type="button" size="sm" variant="outline" onClick={() => setIsVehicleEditModalOpen(false)}>Cancel</Button>
+            <Button type="submit" size="sm" variant="primary" isLoading={editVehicleMutation.isPending}>Save Vehicle Details</Button>
+          </div>
+        </form>
+      </Modal>
+
       {/* ========================================================================= */}
       {/* MODAL 1: UPLOAD REGULATORY DOCUMENT                                       */}
       {/* ========================================================================= */}
       <Modal
         isOpen={isUploadDocModalOpen}
-        onClose={() => setIsUploadDocModalOpen(false)}
-        title="Upload Statutory & Regulatory Document"
-        description={`Attach and register commercial compliance documentation for ${currentVehicle.registrationNumber}.`}
+        onClose={() => { setIsUploadDocModalOpen(false); setEditingDocumentId(null); setSelectedDocumentFile(null); }}
+        title={editingDocumentId ? 'Edit Vehicle Document' : 'Upload Statutory & Regulatory Document'}
+        description={editingDocumentId ? 'Update document details or choose a replacement file.' : `Attach and register commercial compliance documentation for ${currentVehicle.registrationNumber}.`}
         size="lg"
       >
         <form
@@ -2096,6 +2200,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
           }}
           className="space-y-4 text-xs"
         >
+          {uploadDocMutation.isError && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-rose-300">{(uploadDocMutation.error as Error).message}</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Select
               label="Document Classification"
@@ -2152,12 +2257,11 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
               ]}
             />
 
-            <Input
-              label="Attached Document File Name"
-              placeholder="e.g. il_fleet_cert_2026.pdf"
-              value={docForm.fileName}
-              onChange={(e) => setDocForm({ ...docForm, fileName: e.target.value })}
-            />
+            <label className="block text-xs text-slate-300">
+              <span className="mb-2 block font-medium">{editingDocumentId ? 'Replace document file (optional)' : 'Document file'}</span>
+              <input type="file" required={!editingDocumentId} accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={(e) => setSelectedDocumentFile(e.target.files?.[0] || null)} className="block w-full text-xs text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-500/15 file:px-3 file:py-2 file:text-blue-300" />
+              <span className="mt-1 block text-[11px] text-slate-500">{selectedDocumentFile?.name || (editingDocumentId ? 'Keep the current file or select a replacement.' : 'PDF or image file')}</span>
+            </label>
           </div>
 
           <div className="p-3 rounded-lg border border-slate-800 bg-slate-900/50 flex items-center justify-between">
@@ -2173,7 +2277,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
               variant="outline"
               size="sm"
               type="button"
-              onClick={() => setIsUploadDocModalOpen(false)}
+              onClick={() => { setIsUploadDocModalOpen(false); setEditingDocumentId(null); setSelectedDocumentFile(null); }}
             >
               Cancel
             </Button>
@@ -2183,7 +2287,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
               type="submit"
               isLoading={uploadDocMutation.isPending}
             >
-              Save & Upload Document
+              {editingDocumentId ? 'Save Document Changes' : 'Save & Upload Document'}
             </Button>
           </div>
         </form>

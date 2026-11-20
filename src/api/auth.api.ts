@@ -1,5 +1,5 @@
 import { apiClient, tokenStorage, tenantStorage } from './client';
-import { User } from '../types';
+import { PackageTier, User } from '../types';
 
 export interface LoginCredentials {
   email: string;
@@ -23,139 +23,42 @@ export interface AuthResponse {
   refresh: string;
   user: User;
   mfaRequired?: boolean;
+  packageTier?: PackageTier;
+  packageVerified?: boolean;
 }
+
+const toPackageTier = (value: unknown): PackageTier | undefined => {
+  const code = String(value || '').toLowerCase();
+  return code === 'basic' || code === 'standard' || code === 'corporate' || code === 'enterprise'
+    ? code
+    : undefined;
+};
 
 export const authApi = {
   register: async (payload: RegisterPayload): Promise<AuthResponse> => {
-    const isSuperAdminRequested = Boolean(payload.is_super_admin);
     const body = {
       company_name: payload.company_name,
-      name: payload.company_name,
-      email: payload.email,
-      password: payload.password,
-      first_name: payload.first_name || 'Admin',
-      last_name: payload.last_name || 'User',
+      admin_email: payload.email.trim().toLowerCase(),
+      admin_password: payload.password,
+      admin_first_name: payload.first_name || 'Admin',
+      admin_last_name: payload.last_name || 'User',
       phone: payload.phone || '',
-      is_platform_admin: isSuperAdminRequested,
-      is_super_admin: isSuperAdminRequested,
-      package_tier: payload.package_tier || 'standard',
-      subscription_plan: payload.package_tier || 'standard',
-      status: 'active',
-      role: isSuperAdminRequested ? 'SUPER_ADMIN' : 'TENANT_ADMIN',
+      package_code: (payload.package_tier || 'standard').toUpperCase(),
+      billing_cycle: 'MONTHLY',
+      vertical_codes: payload.package_tier === 'enterprise' ? ['all_verticals'] : ['freight_logistics'],
     };
 
-    let raw: any;
-    try {
-      const response = await apiClient.post<any>('/auth/register/', body);
-      raw = response.data?.data || response.data;
-    } catch (err: any) {
-      if (err?.response?.status === 404) {
-        // Fallback 1: Try /auth/signup/
-        try {
-          const resSignup = await apiClient.post<any>('/auth/signup/', body);
-          raw = resSignup.data?.data || resSignup.data;
-        } catch (signupErr: any) {
-          if (signupErr?.response?.status === 404) {
-            // Fallback 2: Try /platform/tenants/ or /tenants/
-            const resTenant = await apiClient.post<any>('/platform/tenants/', body);
-            raw = resTenant.data?.data || resTenant.data;
-          } else {
-            throw signupErr;
-          }
-        }
-      } else {
-        throw err;
-      }
-    }
-
-    const rawUser = raw?.user || raw || {};
-    // Extract real tenant UUID
-    const tenantUuid =
-      raw?.tenant?.id ||
-      rawUser?.tenant_uuid ||
-      (typeof rawUser?.tenant_id === 'string' && rawUser.tenant_id.length > 20 ? rawUser.tenant_id : undefined) ||
-      raw?.active_tenant?.id;
-
-    const tenantId = tenantUuid || rawUser.tenant_id || `tenant_${Date.now()}`;
-
-    // Immediately register active tenant in tenantStorage so client interceptor sends correct X-Tenant-ID
-    tenantStorage.setActiveTenantId(tenantId);
-
-    const isPlatformUser = Boolean(
-      isSuperAdminRequested ||
-      rawUser.is_platform_admin ||
-      rawUser.is_super_admin ||
-      rawUser.is_platform_user ||
-      rawUser.platform_role === 'SUPER_ADMIN'
+    // Public onboarding endpoint provisions the tenant and initial tenant admin.
+    const provisionResponse = await apiClient.post<any>('/platform/tenants/provision/', body);
+    const provisionedTenantId = provisionResponse.data?.tenant_id;
+    // Provisioning does not issue JWTs, so sign in through the canonical auth endpoint.
+    return authApi.login(
+      { email: payload.email.trim().toLowerCase(), password: payload.password },
+      provisionedTenantId
     );
-
-    const user: User = {
-      id: String(rawUser.id || 'usr_new'),
-      email: rawUser.email || payload.email,
-      firstName: rawUser.first_name || payload.first_name || 'Admin',
-      lastName: rawUser.last_name || payload.last_name || 'User',
-      isPlatformUser,
-      platformRole: isPlatformUser ? 'super_admin' : undefined,
-      tenantId,
-      tenantRole: isPlatformUser ? undefined : 'tenant_admin',
-      permissions: Array.isArray(rawUser.permissions)
-        ? rawUser.permissions
-        : Array.isArray(raw?.permissions)
-        ? raw.permissions
-        : ['*'],
-      mfaEnabled: false,
-      status: 'active',
-    };
-
-    const tier = (payload.package_tier as any) || 'standard';
-    const initialTenant = {
-      id: tenantId,
-      name: payload.company_name,
-      slug: payload.company_name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      status: 'active',
-      verticals: ['freight_logistics'],
-      subscription: {
-        package: tier,
-        status: 'active',
-        billingCycle: 'monthly',
-        mrr: tier === 'basic' ? 149 : tier === 'standard' ? 399 : tier === 'corporate' ? 899 : 1899,
-        startDate: new Date().toISOString().slice(0, 10),
-        renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-        enabledAddons: tier === 'enterprise' ? ['addon_warehouse', 'addon_contracts', 'addon_cold_chain'] : [],
-        currency: 'USD',
-        autoRenew: true,
-      },
-      primaryContactName: `${payload.first_name || 'Admin'} ${payload.last_name || 'User'}`.trim(),
-      primaryContactEmail: payload.email,
-      primaryContactPhone: payload.phone || '',
-      vehicleCount: 0,
-      activeTripsCount: 0,
-      userCount: 1,
-      storageUsedGb: 0.1,
-      createdAt: new Date().toISOString().slice(0, 10),
-      updatedAt: new Date().toISOString().slice(0, 10),
-    };
-
-    try {
-      localStorage.setItem('omni_active_tenant', JSON.stringify(initialTenant));
-      localStorage.setItem('omni_org_owner_email', payload.email.trim().toLowerCase());
-      localStorage.setItem('omni_registered_company', payload.company_name.trim());
-    } catch {
-      // Storage safe
-    }
-
-    if (raw?.access) tokenStorage.setAccessToken(raw.access);
-    if (raw?.refresh) tokenStorage.setRefreshToken(raw.refresh);
-
-    return {
-      access: raw?.access || '',
-      refresh: raw?.refresh || '',
-      user,
-      mfaRequired: false,
-    };
   },
 
-  login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
+  login: async (credentials: LoginCredentials, preferredTenantId?: string): Promise<AuthResponse> => {
     const response = await apiClient.post<any>('/auth/login/', {
       email: credentials.email,
       password: credentials.password,
@@ -163,7 +66,11 @@ export const authApi = {
 
     const raw = response.data?.data || response.data;
     const rawUser = raw.user || {};
-    const activeTenant = raw.tenants?.[0] || raw.active_tenant;
+    const memberships = Array.isArray(raw.tenants) ? raw.tenants : [];
+    const preferredTenant = preferredTenantId
+      ? memberships.find((tenant: any) => tenant.id === preferredTenantId || tenant.tenant_id === preferredTenantId)
+      : undefined;
+    const activeTenant = preferredTenant || memberships[0] || raw.active_tenant;
 
     const roleUpper = String(rawUser.role || rawUser.platform_role || activeTenant?.role_code || '').toUpperCase();
     const isPlatformAdmin = Boolean(
@@ -184,6 +91,10 @@ export const authApi = {
       raw.tenant?.id;
 
     let resolvedTenantId = tenantUuid || activeTenant?.id || rawUser.tenant_id;
+    let packageTier = toPackageTier(
+      activeTenant?.package_code || activeTenant?.package?.code || activeTenant?.package_tier || activeTenant?.subscription?.package
+    );
+    let packageVerified = Boolean(packageTier);
 
     if (tenantUuid) {
       tenantStorage.setActiveTenantId(tenantUuid);
@@ -199,16 +110,17 @@ export const authApi = {
           slug: (activeTenant.company_name || activeTenant.name || 'workspace').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
           status: (activeTenant.status || 'active').toLowerCase(),
           verticals: activeTenant.verticals || ['freight_logistics'],
-          subscription: activeTenant.subscription || {
-            package: (activeTenant.package_tier || 'standard').toLowerCase(),
-            status: 'active',
-            billingCycle: 'monthly',
-            mrr: 0,
-            startDate: new Date().toISOString().slice(0, 10),
-            renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-            enabledAddons: [],
-            currency: 'USD',
-            autoRenew: true,
+          subscription: {
+            ...(activeTenant.subscription || {}),
+            package: packageTier || 'standard',
+            status: activeTenant.subscription?.status || 'active',
+            billingCycle: activeTenant.subscription?.billingCycle || 'monthly',
+            mrr: activeTenant.subscription?.mrr || 0,
+            startDate: activeTenant.subscription?.startDate || new Date().toISOString().slice(0, 10),
+            renewalDate: activeTenant.subscription?.renewalDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+            enabledAddons: activeTenant.subscription?.enabledAddons || [],
+            currency: activeTenant.subscription?.currency || 'USD',
+            autoRenew: activeTenant.subscription?.autoRenew ?? true,
           },
           primaryContactName: `${rawUser.first_name || ''} ${rawUser.last_name || ''}`.trim() || 'Admin User',
           primaryContactEmail: rawUser.email || credentials.email,
@@ -234,7 +146,7 @@ export const authApi = {
       ? rawUser.permissions
       : Array.isArray(raw.permissions)
       ? raw.permissions
-      : ['*'];
+      : activeTenant?.permissions || ['*'];
 
     const user: User = {
       id: String(rawUser.id || 'user_current'),
@@ -246,6 +158,7 @@ export const authApi = {
       platformRole: isPlatformAdmin ? 'super_admin' : undefined,
       tenantId: resolvedTenantId,
       tenantRole: tenantRole as any,
+      isTenantPrimary: Boolean(activeTenant?.is_primary),
       permissions: userPermissions,
       mfaEnabled: isMfaRequired || Boolean(rawUser.mfa_enabled),
       status: 'active',
@@ -254,11 +167,46 @@ export const authApi = {
     if (raw.access) tokenStorage.setAccessToken(raw.access);
     if (raw.refresh) tokenStorage.setRefreshToken(raw.refresh);
 
+    // The login response omits package details; resolve the authoritative tier
+    // from the authenticated tenant subscription before persisting its context.
+    if (resolvedTenantId && !isPlatformAdmin) {
+      try {
+        const subscriptionResponse = await apiClient.get<any>('/subscriptions/current/');
+        const subscription = subscriptionResponse.data?.subscription || subscriptionResponse.data;
+        const resolvedPackageTier = toPackageTier(subscription?.package?.code || subscription?.package?.name);
+        if (resolvedPackageTier) {
+          packageTier = resolvedPackageTier;
+          packageVerified = true;
+        }
+        if (packageTier) {
+          const savedTenant = localStorage.getItem('omni_active_tenant');
+          if (savedTenant) {
+            const tenant = JSON.parse(savedTenant);
+            tenant.subscription = {
+              ...tenant.subscription,
+              package: packageTier,
+              billingCycle: String(subscription?.billing_cycle || tenant.subscription?.billingCycle || 'MONTHLY').toLowerCase(),
+              status: String(subscription?.status || tenant.subscription?.status || 'ACTIVE').toLowerCase(),
+              enabledAddons: Array.isArray(subscription?.addons)
+                ? subscription.addons.map((addon: any) => String(addon.code || '').toLowerCase())
+                : tenant.subscription?.enabledAddons || [],
+            };
+            if (packageTier === 'enterprise') tenant.verticals = ['all_verticals'];
+            localStorage.setItem('omni_active_tenant', JSON.stringify(tenant));
+          }
+        }
+      } catch (error) {
+        console.warn('Could not refresh the tenant package after sign in.', error);
+      }
+    }
+
     return {
       access: raw.access || '',
       refresh: raw.refresh || '',
       user,
       mfaRequired: isMfaRequired,
+      packageTier,
+      packageVerified,
     };
   },
 
@@ -357,6 +305,7 @@ export const authApi = {
       platformRole: isPlatformAdmin ? 'super_admin' : undefined,
       tenantId: resolvedTenantId,
       tenantRole: tenantRole as any,
+      isTenantPrimary: Boolean(activeTenant?.is_primary),
       permissions: userPermissions,
       mfaEnabled: Boolean(rawUser.mfa_enabled),
       status: 'active',

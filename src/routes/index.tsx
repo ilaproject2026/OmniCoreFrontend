@@ -17,6 +17,7 @@ import { VerticalAccessRestricted } from '../components/feedback/VerticalAccessR
 
 // Auth Pages
 import { Login } from '../features/auth/Login';
+import { AcceptEmployeeInvitation } from '../features/auth/AcceptEmployeeInvitation';
 import { Register } from '../features/auth/Register';
 import { PlanSelectionPage } from '../features/auth/PlanSelectionPage';
 import { MfaVerification } from '../features/auth/MfaVerification';
@@ -76,6 +77,7 @@ export const AppRoutes: React.FC = () => {
       <Route path="/auth" element={<AuthLayout />}>
         <Route index element={<Navigate to="/auth/register" replace />} />
         <Route path="login" element={<Login />} />
+        <Route path="accept-invitation" element={<AcceptEmployeeInvitation />} />
         <Route path="register" element={<Register />} />
         <Route path="mfa" element={<MfaVerification />} />
         <Route path="forgot-password" element={<ForgotPassword />} />
@@ -161,8 +163,8 @@ export const AppRoutes: React.FC = () => {
               fallback={<PlanFeatureRestricted moduleName="Contracts & Tenders" requiredTier="standard" />}
             >
               <PermissionGuard
-                permission="contracts.view"
-                fallback={<RoleAccessRestricted moduleName="Contracts & Tenders" requiredPermission="contracts.view" />}
+                permission="contract.view"
+                fallback={<RoleAccessRestricted moduleName="Contracts & Tenders" requiredPermission="contract.view" />}
               >
                 <ContractsHub />
               </PermissionGuard>
@@ -251,9 +253,14 @@ export const AppRoutes: React.FC = () => {
           element={
             <FeatureGuard
               module="insurance"
-              fallback={<PlanFeatureRestricted moduleName="Insurance & Claims" requiredTier="standard" />}
+              fallback={<PlanFeatureRestricted moduleName="Insurance & Claims" requiredTier="corporate" />}
             >
-              <InsuranceHub />
+              <PermissionGuard
+                permission="insurance.view"
+                fallback={<RoleAccessRestricted moduleName="Insurance & Claims" requiredPermission="insurance.view" />}
+              >
+                <InsuranceHub />
+              </PermissionGuard>
             </FeatureGuard>
           }
         />
@@ -294,8 +301,8 @@ export const AppRoutes: React.FC = () => {
           path="settings"
           element={
             <PermissionGuard
-              permission="settings.manage"
-              fallback={<RoleAccessRestricted moduleName="Tenant Settings" requiredPermission="settings.manage" />}
+              permission="tenant.manage"
+              fallback={<RoleAccessRestricted moduleName="Tenant Settings" requiredPermission="tenant.manage" />}
             >
               <TenantSettings />
             </PermissionGuard>

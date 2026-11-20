@@ -6,6 +6,8 @@ import {
   CourierShipmentStatus,
   MultiPointPickup,
   ProofOfDelivery,
+  HubConvoy,
+  AgentPayout,
 } from '../../types';
 
 // ==================== QUERIES ====================
@@ -81,6 +83,14 @@ export function useCourierPayouts() {
     queryKey: queryKeys.courier.payouts,
     queryFn: () => courierApi.getAgentPayouts(),
   });
+}
+
+export function useCourierConvoys() {
+  return useQuery({ queryKey: queryKeys.courier.convoys, queryFn: () => courierApi.getHubConvoys() });
+}
+
+export function useCourierExpenses() {
+  return useQuery({ queryKey: queryKeys.courier.expenses, queryFn: () => courierApi.getAgentExpenses() });
 }
 
 // ==================== MUTATIONS ====================
@@ -183,10 +193,12 @@ export function useUpdatePickupStopMutation() {
     }: {
       pickupId: string;
       stopId: string;
-      status: 'pending' | 'completed' | 'picked_up' | 'assigned' | 'failed';
+      status: 'pending' | 'completed' | 'picked_up' | 'assigned' | 'in_progress' | 'failed';
     }) => courierApi.updatePickupStopStatus(pickupId, stopId, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.courier.pickups });
+      queryClient.invalidateQueries({ queryKey: queryKeys.courier.shipments() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.courier.hubs });
     },
   });
 }
@@ -231,6 +243,103 @@ export function useApprovePayoutMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.courier.payouts });
       queryClient.invalidateQueries({ queryKey: queryKeys.courier.commissions() });
+    },
+  });
+}
+
+export function useCreatePickupBatchMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Partial<MultiPointPickup>) => courierApi.createMultiPointPickup(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.courier.pickups });
+      queryClient.invalidateQueries({ queryKey: queryKeys.courier.shipments() });
+    },
+  });
+}
+
+export function useCreateConvoyMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Partial<HubConvoy>) => courierApi.createHubConvoy(payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.courier.convoys }),
+  });
+}
+
+export function useConvoyActionMutation(action: 'dispatch' | 'arrive') {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => action === 'dispatch' ? courierApi.dispatchHubConvoy(id) : courierApi.arriveHubConvoy(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.courier.convoys });
+      queryClient.invalidateQueries({ queryKey: queryKeys.courier.shipments() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.courier.hubs });
+    },
+  });
+}
+
+export function useCreateCourierAgentMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { agentCode: string; driverId: string; vehicleId?: string; serviceArea: string; commissionRate: number; currentHubId?: string }) => courierApi.createCourierAgent(payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.courier.agents }),
+  });
+}
+
+export function useCreateCourierHubMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: any) => courierApi.createDeliveryHub(payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.courier.hubs }),
+  });
+}
+
+export function useAssignCourierAgentMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ shipmentId, agentId }: { shipmentId: string; agentId: string }) => courierApi.assignShipmentAgent(shipmentId, agentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.courier.shipments() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.courier.agents });
+    },
+  });
+}
+
+export function useRequestCourierPayoutMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Partial<AgentPayout>) => courierApi.requestPayout(payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.courier.payouts }),
+  });
+}
+
+export function usePayCourierPayoutMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => courierApi.payPayout(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.courier.payouts });
+      queryClient.invalidateQueries({ queryKey: queryKeys.courier.commissions() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.courier.agents });
+    },
+  });
+}
+
+export function useCreateCourierExpenseMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { agentId: string; expenseType: string; amount: number; notes?: string }) => courierApi.createAgentExpense(payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.courier.expenses }),
+  });
+}
+
+export function useApproveCourierExpenseMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => courierApi.approveAgentExpense(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.courier.expenses });
+      queryClient.invalidateQueries({ queryKey: queryKeys.courier.payouts });
     },
   });
 }

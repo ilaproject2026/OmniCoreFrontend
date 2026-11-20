@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTenant } from '../../contexts/TenantContext';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
@@ -31,11 +31,56 @@ import { PackageUpgradeModal } from '../platform/PackageUpgradeModal';
 
 export const TenantSettings: React.FC = () => {
   const { user } = useAuth();
-  const { tenant, packageTier, enabledAddons, setPackageTier, toggleAddon, updateTenantVerticals } = useTenant();
+  const { tenant, packageTier, enabledAddons, toggleAddon, updateTenantVerticals, updateTenantProfile } = useTenant();
   const [activeTab, setActiveTab] = useState('organization');
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+  const [savingAddon, setSavingAddon] = useState<string | null>(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profile, setProfile] = useState({
+    company_name: tenant.name,
+    email: tenant.primaryContactEmail,
+    phone: tenant.primaryContactPhone,
+    address: tenant.address,
+  });
+
+  useEffect(() => {
+    setProfile({
+      company_name: tenant.name,
+      email: tenant.primaryContactEmail,
+      phone: tenant.primaryContactPhone,
+      address: tenant.address,
+    });
+  }, [tenant.name, tenant.primaryContactEmail, tenant.primaryContactPhone, tenant.address]);
+
+  const handleProfileSave = async () => {
+    setSettingsError('');
+    setIsSavingProfile(true);
+    try {
+      await updateTenantProfile(profile);
+    } catch (error: any) {
+      setSettingsError(error?.response?.data?.message || error?.message || 'Could not save organization profile.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleAddonToggle = async (key: string) => {
+    setSettingsError('');
+    setSavingAddon(key);
+    try {
+      await toggleAddon(key as AddonKey);
+    } catch (error: any) {
+      setSettingsError(error?.response?.data?.message || error?.message || 'Could not update add-on settings.');
+    } finally {
+      setSavingAddon(null);
+    }
+  };
 
   const isSuperAdmin = Boolean(user?.isPlatformUser || user?.platformRole === 'omnicore_admin' || user?.platformRole === 'super_admin');
+  const displayedMrr = (PACKAGES[packageTier]?.monthlyPrice || 0) + ADDONS
+    .filter((addon) => enabledAddons.includes(addon.key))
+    .reduce((total, addon) => total + addon.monthlyPrice, 0);
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -62,6 +107,7 @@ export const TenantSettings: React.FC = () => {
       {/* Tab 1: Organization */}
       {activeTab === 'organization' && (
         <Card className="p-6 space-y-4 text-xs">
+          {settingsError && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-950/30 px-4 py-3 text-red-200">{settingsError}</div>}
           <div className="flex items-center justify-between pb-3 border-b border-slate-800">
             <div>
               <h3 className="font-semibold text-sm text-white">Commercial Profile</h3>
@@ -71,12 +117,14 @@ export const TenantSettings: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input label="Company Name" value={tenant.name} readOnly />
+            <Input label="Company Name" value={profile.company_name} onChange={(e) => setProfile({ ...profile, company_name: e.target.value })} required />
             <Input label="Subdomain / Slug" value={`${tenant.slug}.omnicore.io`} readOnly />
-            <Input label="Primary Contact" value={tenant.primaryContactName} readOnly />
-            <Input label="Contact Email" value={tenant.primaryContactEmail} readOnly />
-            <Input label="Hub Address" value={tenant.address} readOnly />
-            <Input label="City / Region" value={`${tenant.city}, ${tenant.country}`} readOnly />
+            <Input label="Contact Email" type="email" value={profile.email} onChange={(e) => setProfile({ ...profile, email: e.target.value })} required />
+            <Input label="Contact Phone" value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} />
+            <Input label="Headquarters Address" value={profile.address} onChange={(e) => setProfile({ ...profile, address: e.target.value })} />
+          </div>
+          <div className="flex justify-end pt-2">
+            <Button variant="primary" onClick={() => void handleProfileSave()} isLoading={isSavingProfile}>Save Company Profile</Button>
           </div>
         </Card>
       )}
@@ -84,6 +132,7 @@ export const TenantSettings: React.FC = () => {
       {/* Tab 2: Subscription & Add-ons (Live interactive switcher!) */}
       {activeTab === 'subscription' && (
         <div className="space-y-5 text-xs">
+          {settingsError && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-950/30 px-4 py-3 text-red-200">{settingsError}</div>}
           <Card className="p-6 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div>
@@ -104,7 +153,7 @@ export const TenantSettings: React.FC = () => {
                   Upgrade Plan Wizard
                 </Button>
                 <span className="font-mono text-emerald-400 font-bold text-sm">
-                  {formatCurrency(tenant.subscription.mrr)}/mo
+                  {formatCurrency(displayedMrr)}/mo
                 </span>
               </div>
             </div>
@@ -117,8 +166,7 @@ export const TenantSettings: React.FC = () => {
                 return (
                   <div
                     key={tier}
-                    onClick={() => setPackageTier(tier)}
-                    className={`p-3.5 rounded-xl border transition-all cursor-pointer select-none text-center flex flex-col justify-between ${
+                    className={`p-3.5 rounded-xl border transition-all select-none text-center flex flex-col justify-between ${
                       isSelected
                         ? 'border-blue-500 bg-blue-950/40 ring-2 ring-blue-500/40'
                         : 'border-slate-800 bg-[#0f172a] hover:border-slate-700'
@@ -130,8 +178,8 @@ export const TenantSettings: React.FC = () => {
                     </div>
                     <div className="mt-3">
                       <span className="font-mono font-bold text-white block">${pkg.monthlyPrice}/mo</span>
-                      <Button size="sm" variant={isSelected ? 'primary' : 'outline'} className="w-full mt-2 text-xs">
-                        {isSelected ? 'Active Plan' : 'Select'}
+                      <Button size="sm" variant={isSelected ? 'primary' : 'outline'} className="w-full mt-2 text-xs" onClick={() => setIsUpgradeModalOpen(true)}>
+                        {isSelected ? 'Active Plan' : 'View Upgrade Options'}
                       </Button>
                     </div>
                   </div>
@@ -159,7 +207,8 @@ export const TenantSettings: React.FC = () => {
                 return (
                   <div
                     key={addon.key}
-                    onClick={() => toggleAddon(addon.key)}
+                    onClick={() => void handleAddonToggle(addon.key)}
+                    aria-disabled={savingAddon === addon.key}
                     className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
                       isEnabled
                         ? 'border-cyan-500/60 bg-cyan-950/30'
@@ -175,7 +224,7 @@ export const TenantSettings: React.FC = () => {
                         isEnabled ? 'bg-cyan-600 text-white' : 'border border-slate-700'
                       }`}
                     >
-                      {isEnabled && <Check className="h-3.5 w-3.5" />}
+                      {savingAddon === addon.key ? <span className="h-2 w-2 rounded-full bg-cyan-200 animate-pulse" /> : isEnabled && <Check className="h-3.5 w-3.5" />}
                     </div>
                   </div>
                 );
@@ -188,6 +237,7 @@ export const TenantSettings: React.FC = () => {
       {/* Tab 3: Verticals */}
       {activeTab === 'verticals' && (
         <Card className="p-6 space-y-4 text-xs">
+          {settingsError && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-950/30 px-4 py-3 text-red-200">{settingsError}</div>}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
             <div>
               <h3 className="font-semibold text-sm text-white flex items-center gap-2">
@@ -261,7 +311,12 @@ export const TenantSettings: React.FC = () => {
                           } else {
                             next = [...current, def.id as VerticalType];
                           }
-                          await updateTenantVerticals(tenant.id, next);
+                          setSettingsError('');
+                          try {
+                            await updateTenantVerticals(tenant.id, next);
+                          } catch (error: any) {
+                            setSettingsError(error?.response?.data?.message || error?.message || 'Could not update vertical access.');
+                          }
                         }}
                         className="text-[10px]"
                       >

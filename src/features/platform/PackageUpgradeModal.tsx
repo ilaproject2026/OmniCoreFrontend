@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTenant } from '../../contexts/TenantContext';
 import { PackageTier, AddonKey } from '../../types';
 import { PACKAGES, ADDONS } from '../../config/constants';
@@ -22,6 +22,15 @@ export const PackageUpgradeModal: React.FC<PackageUpgradeModalProps> = ({
   const [selectedTier, setSelectedTier] = useState<PackageTier>(packageTier);
   const [selectedAddons, setSelectedAddons] = useState<AddonKey[]>(enabledAddons);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedTier(packageTier);
+      setSelectedAddons(enabledAddons);
+      setErrorMessage('');
+    }
+  }, [isOpen, packageTier, enabledAddons]);
 
   const tiers: PackageTier[] = ['basic', 'standard', 'corporate', 'enterprise'];
 
@@ -33,12 +42,13 @@ export const PackageUpgradeModal: React.FC<PackageUpgradeModalProps> = ({
 
   const handleUpgrade = async () => {
     setIsSubmitting(true);
+    setErrorMessage('');
     try {
       await upgradePackage(selectedTier, selectedAddons);
       if (onSuccess) onSuccess();
       onClose();
-    } catch (err) {
-      console.error('Upgrade failed:', err);
+    } catch (err: any) {
+      setErrorMessage(err?.response?.data?.message || err?.message || 'Subscription update failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -55,6 +65,7 @@ export const PackageUpgradeModal: React.FC<PackageUpgradeModalProps> = ({
       size="xl"
     >
       <div className="space-y-6">
+        {errorMessage && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-950/30 px-4 py-3 text-xs text-red-200">{errorMessage}</div>}
         <p className="text-xs text-slate-400">
           Upgrade your organization's subscription tier without service interruption or page reloads.
           All newly unlocked modules will activate instantly.

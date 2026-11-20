@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { User, AuthSession, TenantRole } from '../types';
+import { User, AuthSession, PackageTier, TenantRole } from '../types';
 import { authApi, LoginCredentials, RegisterPayload } from '../api/auth.api';
 import { clearAllSessionData } from '../api/client';
 import { clearQueryClientCache } from '../api/queryClient';
 
 interface AuthContextType extends AuthSession {
   login: (credentials: LoginCredentials) => Promise<{ mfaRequired?: boolean; user?: User }>;
-  register: (payload: RegisterPayload) => Promise<{ user?: User }>;
+  register: (payload: RegisterPayload) => Promise<{ user?: User; packageTier?: PackageTier; packageVerified?: boolean }>;
   verifyMfa: (code: string) => Promise<void>;
   logout: () => Promise<void>;
   switchRole: (role: TenantRole | 'super_admin' | 'omnicore_admin') => void;
@@ -112,7 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(res.user);
       setAccessToken(res.access);
       setRefreshToken(res.refresh);
-      return { user: res.user };
+      return { user: res.user, packageTier: res.packageTier, packageVerified: res.packageVerified };
     } finally {
       setIsLoading(false);
     }

@@ -37,6 +37,19 @@ import {
 } from 'recharts';
 import { formatCurrency, formatDate } from '../../lib/utils';
 
+const buildNewInvoice = () => {
+  const issueDate = new Date().toISOString().slice(0, 10);
+  const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return {
+    invoiceNumber: `INV-${issueDate.replace(/-/g, '')}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+    issueDate,
+    dueDate,
+    clientName: '',
+    customerId: '',
+    amount: 0,
+  };
+};
+
 export const FinanceHub: React.FC = () => {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'invoices' | 'payments' | 'analytics'>('invoices');
@@ -44,11 +57,7 @@ export const FinanceHub: React.FC = () => {
   const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null);
 
   // New Invoice Form State
-  const [newInvoice, setNewInvoice] = useState({
-    clientName: '',
-    customerId: '',
-    amount: 0,
-  });
+  const [newInvoice, setNewInvoice] = useState(buildNewInvoice);
 
   // Payment Recording State
   const [paymentData, setPaymentData] = useState({
@@ -82,14 +91,18 @@ export const FinanceHub: React.FC = () => {
   const createInvoiceMutation = useMutation({
     mutationFn: (data: typeof newInvoice) =>
       financeApi.createInvoice({
+        invoiceNumber: data.invoiceNumber,
+        issueDate: data.issueDate,
+        dueDate: data.dueDate,
         clientName: data.clientName,
-        customerId: data.customerId || undefined,
+        customerId: data.customerId,
         amount: data.amount,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['financeSummary'] });
       setIsInvoiceModalOpen(false);
+      setNewInvoice(buildNewInvoice());
     },
   });
 
@@ -483,7 +496,8 @@ export const FinanceHub: React.FC = () => {
           className="space-y-4 text-xs"
         >
           <Select
-            label="Registered CRM Shipper (Optional)"
+            label="Registered CRM Customer"
+            required
             value={newInvoice.customerId}
             onChange={(e) => {
               const custId = e.target.value;
@@ -491,11 +505,11 @@ export const FinanceHub: React.FC = () => {
               setNewInvoice({
                 ...newInvoice,
                 customerId: custId,
-                clientName: c ? (c.companyName || c.name) : newInvoice.clientName,
+                clientName: c ? (c.companyName || c.name) : '',
               });
             }}
             options={[
-              { value: '', label: '-- Custom / One-Off Shipper --' },
+              { value: '', label: '-- Select a registered customer --', disabled: true },
               ...customers.map((c) => ({
                 value: c.id,
                 label: `${c.companyName || c.name} (${c.contactPerson})`,
@@ -507,13 +521,41 @@ export const FinanceHub: React.FC = () => {
             label="Client / Shipper Legal Entity"
             required
             value={newInvoice.clientName}
-            onChange={(e) => setNewInvoice({ ...newInvoice, clientName: e.target.value })}
+            readOnly
+            helperText="Choose the billing customer from your CRM records."
           />
+
+          <Input
+            label="Invoice Number"
+            required
+            value={newInvoice.invoiceNumber}
+            readOnly
+            helperText="Generated automatically for this invoice."
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="Issue Date"
+              type="date"
+              required
+              value={newInvoice.issueDate}
+              onChange={(e) => setNewInvoice({ ...newInvoice, issueDate: e.target.value })}
+            />
+            <Input
+              label="Due Date"
+              type="date"
+              required
+              min={newInvoice.issueDate}
+              value={newInvoice.dueDate}
+              onChange={(e) => setNewInvoice({ ...newInvoice, dueDate: e.target.value })}
+            />
+          </div>
 
           <Input
             label="Invoice Subtotal Amount ($)"
             type="number"
             required
+            min={0.01}
             value={newInvoice.amount}
             onChange={(e) => setNewInvoice({ ...newInvoice, amount: Number(e.target.value) })}
           />
@@ -522,7 +564,7 @@ export const FinanceHub: React.FC = () => {
             <Button variant="outline" size="sm" type="button" onClick={() => setIsInvoiceModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" size="sm" type="submit" isLoading={createInvoiceMutation.isPending}>
+            <Button variant="primary" size="sm" type="submit" disabled={!newInvoice.customerId || newInvoice.amount <= 0 || createInvoiceMutation.isPending} isLoading={createInvoiceMutation.isPending}>
               Issue & Transmit Invoice
             </Button>
           </div>

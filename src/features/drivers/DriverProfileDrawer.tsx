@@ -147,11 +147,16 @@ export const DriverProfileDrawer: React.FC<DriverProfileDrawerProps> = ({
             <div className="space-y-2">
               <span className="font-semibold text-slate-300 block">Mandatory Regulatory Documents</span>
               {driver.documents.map((doc) => (
-                <div key={doc.id} className="p-3 rounded-lg border border-slate-800 bg-[#141c2e] flex items-center justify-between">
+                  <div key={doc.id} className="p-3 rounded-lg border border-slate-800 bg-[#141c2e] flex items-center justify-between gap-3">
                   <div>
-                    <span className="font-medium text-white capitalize block">{doc.type.replace('_', ' ')}</span>
+                    <span className="font-medium text-white block">{doc.documentName || doc.type.replace(/_/g, ' ')}</span>
                     <span className="text-[11px] font-mono text-slate-400">{doc.documentNumber}</span>
                   </div>
+                  {doc.fileUrl && (
+                    <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="shrink-0 text-blue-400 hover:text-blue-300 font-semibold">
+                      Open file
+                    </a>
+                  )}
                   <div>
                     {doc.isExpiringSoon ? (
                       <Badge variant="warning" dot>Expiring Soon</Badge>

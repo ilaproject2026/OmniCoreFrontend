@@ -28,23 +28,12 @@ export function useSubmitPublicBookingMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: {
-      tenantSlug: string;
-      serviceType: string;
-      senderName: string;
-      senderPhone: string;
-      senderAddress: string;
-      receiverName?: string;
-      receiverPhone?: string;
-      receiverAddress?: string;
-      pickupTime?: string;
-      estimatedWeightKg?: number;
-      notes?: string;
-    }) => publicPortalApi.submitPublicBooking(data),
+    mutationFn: (data: Parameters<typeof publicPortalApi.submitPublicBooking>[0]) =>
+      publicPortalApi.submitPublicBooking(data),
     onSuccess: (res) => {
-      if (res.bookingReference) {
+      if (res.awbNumber) {
         queryClient.invalidateQueries({
-          queryKey: queryKeys.courier.tracking(res.bookingReference),
+          queryKey: queryKeys.courier.tracking(res.awbNumber),
         });
       }
     },

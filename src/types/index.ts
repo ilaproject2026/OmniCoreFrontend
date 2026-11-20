@@ -159,6 +159,7 @@ export interface User {
   platformRole?: PlatformRole;
   tenantId?: string;
   tenantRole?: TenantRole;
+  isTenantPrimary?: boolean;
   customRoleTitle?: string;
   permissions: string[];
   mfaEnabled: boolean;
@@ -193,6 +194,7 @@ export interface VehicleDocument {
   id: string;
   type: 'insurance' | 'registration' | 'fitness_cert' | 'road_tax' | 'permit' | 'pollution_cert';
   documentNumber: string;
+  documentName?: string;
   issueDate: string;
   expiryDate: string;
   fileUrl?: string;
@@ -270,8 +272,10 @@ export interface Vehicle {
 // ----------------- Driver Management -----------------
 export interface DriverDocument {
   id: string;
-  type: 'commercial_license' | 'medical_cert' | 'police_clearance' | 'id_proof';
+  type: string;
   documentNumber: string;
+  documentName?: string;
+  fileUrl?: string;
   issueDate: string;
   expiryDate: string;
   isExpiringSoon: boolean;
@@ -415,8 +419,8 @@ export interface Trip {
 }
 
 // ----------------- Contracts & Tenders -----------------
-export type TenderStatus = 'draft' | 'under_review' | 'submitted' | 'shortlisted' | 'won' | 'lost' | 'awarded';
-export type ContractStatus = 'draft' | 'active' | 'expiring_soon' | 'renewed' | 'terminated' | 'completed';
+export type TenderStatus = 'draft' | 'open' | 'under_review' | 'submitted' | 'shortlisted' | 'won' | 'lost' | 'awarded';
+export type ContractStatus = 'draft' | 'pending_approval' | 'active' | 'expiring_soon' | 'renewed' | 'terminated' | 'completed';
 
 export interface Tender {
   id: string;
@@ -486,6 +490,7 @@ export interface Contract {
   startDate: string;
   endDate: string;
   totalContractValue: number;
+  minimumMonthlyCommitment?: number;
   realizedRevenue: number;
   dedicatedVehiclesCount: number;
   dedicatedVehicleIds?: string[];
@@ -495,6 +500,7 @@ export interface Contract {
   slaActualPercent: number;
   paymentTerms: string;
   paymentTermsDays?: number;
+  termsAndConditions?: string;
   billingCycle?: 'weekly' | 'biweekly' | 'monthly' | 'milestone' | 'per_trip' | 'quarterly';
   penalties?: string;
   securityDeposit?: number;
@@ -725,6 +731,7 @@ export type LeadStage = 'inquiry' | 'qualification' | 'proposal' | 'negotiation'
 
 export interface Lead {
   id: string;
+  convertedCustomerId?: string;
   companyName: string;
   contactPerson: string;
   email: string;
@@ -766,11 +773,14 @@ export interface Employee {
   lastName: string;
   email: string;
   phone: string;
-  department: 'Operations' | 'Fleet' | 'Finance' | 'HR' | 'Warehouse' | 'Field' | 'Admin';
-  role: TenantRole;
+  department: string;
+  designation?: string;
+  role: string;
+  roleId?: string | null;
   branchId?: string;
   joiningDate: string;
-  status: 'active' | 'on_leave' | 'resigned';
+  status: 'active' | 'on_leave' | 'probation' | 'terminated' | 'resigned';
+  accountStatus?: 'active' | 'pending' | 'expired' | 'revoked' | 'inactive' | 'not_invited';
   salary?: {
     monthlyBasic: number;
     allowances: number;
@@ -796,6 +806,7 @@ export interface InsurancePolicy {
 export interface InsuranceClaim {
   id: string;
   claimNumber: string;
+  policyId?: string;
   policyNumber: string;
   vehicleReg: string;
   incidentDate: string;
@@ -811,13 +822,18 @@ export interface MarketingCampaign {
   name: string;
   channel: 'Google Ads' | 'LinkedIn B2B' | 'Industry Expo' | 'Cold Outreach' | 'Referral';
   verticalTarget: VerticalType;
+  startDate?: string;
+  endDate?: string;
   budget: number;
   spend: number;
+  impressions?: number;
+  clicks?: number;
+  attributedRevenue?: number;
   leadsGenerated: number;
   conversions: number;
   cac: number;
   roi: number;
-  status: 'active' | 'paused' | 'completed';
+  status: 'draft' | 'active' | 'paused' | 'completed';
 }
 
 // ----------------- Notifications -----------------
@@ -998,7 +1014,7 @@ export interface MultiPointStop {
   contactPhone: string;
   timeWindow: string;
   parcelCount: number;
-  status: 'pending' | 'assigned' | 'picked_up' | 'failed' | 'rescheduled' | 'completed';
+  status: 'pending' | 'assigned' | 'in_progress' | 'picked_up' | 'failed' | 'rescheduled' | 'completed';
   notes?: string;
 }
 
@@ -1006,6 +1022,8 @@ export interface MultiPointPickup {
   id: string;
   pickupCode: string;
   tenantId: string;
+  shipmentId?: string;
+  shipmentAwb?: string;
   assignedAgentId?: string;
   assignedAgentName?: string;
   stops: MultiPointStop[];
@@ -1022,6 +1040,7 @@ export interface DeliveryHub {
   city: string;
   address: string;
   capacityParcels: number;
+  capacitySqft?: number;
   currentParcelsCount: number;
   incomingShipmentsCount: number;
   pendingSortingCount: number;
@@ -1029,6 +1048,37 @@ export interface DeliveryHub {
   outgoingShipmentsCount: number;
   managerName: string;
   status: 'operational' | 'high_volume' | 'maintenance';
+}
+
+export interface HubConvoy {
+  id: string;
+  convoyNumber: string;
+  originHubId: string;
+  originHubName: string;
+  destinationHubId: string;
+  destinationHubName: string;
+  vehicleId?: string;
+  vehicleRegistration?: string;
+  driverId?: string;
+  driverName?: string;
+  shipmentIds: string[];
+  shipmentAwbs: string[];
+  status: 'planned' | 'departed' | 'arrived' | 'cancelled';
+  scheduledDeparture?: string;
+  departedAt?: string;
+  arrivedAt?: string;
+  notes?: string;
+}
+
+export interface CourierExpenseRecord {
+  id: string;
+  agentId: string;
+  agentName: string;
+  expenseType: string;
+  amount: number;
+  date: string;
+  notes: string;
+  isApproved: boolean;
 }
 
 export interface SortingRecord {
@@ -1058,6 +1108,11 @@ export interface CourierAgent {
   pendingPayoutAmount: number;
   paidAmountTotal: number;
   vehicleType: 'motorcycle' | 'van' | 'e_bike';
+  driverId?: string;
+  vehicleId?: string;
+  vehicleRegistration?: string;
+  commissionRate?: number;
+  currentHubId?: string;
 }
 
 export interface AgentCommission {
@@ -1105,9 +1160,14 @@ export interface ShuttleStop {
 
 export interface ShuttleRoute {
   id: string;
+  organizationId?: string;
+  organizationName?: string;
   routeCode: string;
   name: string;
   organizationType: 'school' | 'corporate_it' | 'healthcare' | 'university';
+  startLocation?: string;
+  endLocation?: string;
+  direction?: 'inbound' | 'outbound' | 'round_trip';
   stops: ShuttleStop[];
   destinationCampus: string;
   totalDistanceKm: number;
@@ -1117,11 +1177,24 @@ export interface ShuttleRoute {
   status: 'active' | 'in_transit' | 'scheduled' | 'cancelled';
 }
 
+export interface ShuttleOrganization {
+  id: string;
+  name: string;
+  code: string;
+  orgType: 'SCHOOL' | 'CORPORATE';
+  contactPerson: string;
+  contactEmail: string;
+  contactPhone: string;
+  address: string;
+  isActive: boolean;
+}
+
 export interface ShuttleSchedule {
   id: string;
   routeId: string;
   routeName: string;
-  shift: 'morning_inbound' | 'evening_outbound' | 'night_shift';
+  dayOfWeek?: string;
+  shift: string;
   departureTime: string;
   arrivalTime: string;
   busReg: string;
@@ -1129,7 +1202,7 @@ export interface ShuttleSchedule {
   driverPhone: string;
   occupancyCount: number;
   capacityTotal: number;
-  status: 'scheduled' | 'in_transit' | 'arrived' | 'delayed';
+  status: 'scheduled' | 'in_transit' | 'arrived' | 'delayed' | 'cancelled';
 }
 
 export interface ShuttlePassenger {
@@ -1137,13 +1210,31 @@ export interface ShuttlePassenger {
   name: string;
   employeeOrStudentId: string;
   type: 'employee' | 'student';
+  organizationId?: string;
+  organizationName?: string;
   assignedRouteId: string;
+  assignedRouteName?: string;
+  pickupStopId?: string;
   assignedStopName: string;
   contactPhone: string;
   emergencyContact: string;
   hasBoardedToday: boolean;
   boardingTimestamp?: string;
+  attendanceStatus?: 'BOARDED' | 'ALIGHTED' | 'ABSENT' | 'EXCUSED';
+  seatNumber?: string;
 }
+
+export interface ShuttleTrip {
+  id: string;
+  tripNumber: string;
+  routeId: string;
+  routeCode: string;
+  tripDate: string;
+  status: 'scheduled' | 'dispatched' | 'in_progress' | 'completed' | 'cancelled';
+  attendanceRecords: Array<{ id: string; passengerId: string; status: 'BOARDED' | 'ALIGHTED' | 'ABSENT' | 'EXCUSED'; timestamp: string; stopId?: string }>;
+}
+
+export type ShuttleAttendanceStatus = 'BOARDED' | 'ALIGHTED' | 'ABSENT' | 'EXCUSED';
 
 // ============================================================
 // WAREHOUSE EXTENSIONS: CROSS-DOCKING & CONSOLIDATION
@@ -1177,6 +1268,8 @@ export interface ShipmentConsolidationGroup {
 // ============================================================
 export interface SocialPost {
   id: string;
+  socialAccountId?: string;
+  socialCampaignId?: string;
   channel: 'Instagram' | 'Facebook' | 'LinkedIn' | 'Google';
   campaignName: string;
   caption: string;
@@ -1196,6 +1289,9 @@ export interface SocialPost {
 export interface TenantPublicCms {
   tenantSlug: string;
   companyName: string;
+  isPublished?: boolean;
+  enabledVerticals?: string[];
+  phoneVerificationRequired?: boolean;
   tagline: string;
   logoUrl?: string;
   primaryColor: string;
@@ -1207,6 +1303,7 @@ export interface TenantPublicCms {
   heroSubtitle: string;
   enabledServices: {
     id: string;
+    vertical?: string;
     title: string;
     description: string;
     icon: string;

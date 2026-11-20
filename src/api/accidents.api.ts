@@ -22,33 +22,20 @@ export const mapIncidentSeverityToFrontend = (severity?: string): AccidentReport
 };
 
 export const toBackendAccidentPayload = (payload: Partial<AccidentReport>): Record<string, any> => {
-  const sev = mapIncidentSeverityToBackend(payload.damageSeverity || (payload as any).severity);
   return {
-    ...payload,
     vehicle: payload.vehicleId,
-    vehicle_id: payload.vehicleId,
-    driver: payload.driverId,
-    driver_id: payload.driverId,
-    trip: payload.tripId,
-    trip_id: payload.tripId,
-    incident_date: payload.incidentDate,
-    damage_severity: sev,
-    severity: sev,
-    damage_description: payload.damageDescription,
-    description: payload.damageDescription,
-    third_party_involved: payload.thirdPartyInvolved,
-    third_party_details: payload.thirdPartyDetails,
-    police_report_number: payload.policeReportNumber,
-    estimated_repair_cost: payload.estimatedRepairCost,
-    actual_repair_cost: payload.actualRepairCost,
+    driver: payload.driverId || null,
+    accident_date: payload.incidentDate || payload.dateTime || new Date().toISOString(),
     location: payload.location,
-    preventable: payload.preventable,
-    notes: payload.notes,
+    description: payload.damageDescription || payload.description || '',
+    estimated_damage_cost: payload.estimatedRepairCost ?? (payload as any).estimatedDamageCost ?? 0,
+    insurance_claim_number: payload.policeReportNumber || '',
   };
 };
 
 export const normalizeAccidentResponse = (data: any): AccidentReport => {
   if (!data) return data;
+  const estimatedDamageCost = Number(data.estimated_damage_cost ?? data.estimatedDamageCost ?? data.estimated_repair_cost ?? data.estimatedRepairCost ?? 0);
   return {
     ...data,
     id: data.id || `acc_${Math.random().toString(36).substring(2, 7)}`,
@@ -58,13 +45,15 @@ export const normalizeAccidentResponse = (data: any): AccidentReport => {
     driverId: data.driver_id || data.driverId || (typeof data.driver === 'string' ? data.driver : data.driver?.id),
     driverName: data.driver_name || data.driverName || (data.driver ? `${data.driver.first_name || ''} ${data.driver.last_name || ''}`.trim() : ''),
     tripId: data.trip_id || data.tripId || (typeof data.trip === 'string' ? data.trip : data.trip?.id),
-    incidentDate: data.incident_date || data.incidentDate || '',
+    incidentDate: data.accident_date || data.incident_date || data.incidentDate || '',
+    dateTime: data.accident_date || data.dateTime,
     damageSeverity: mapIncidentSeverityToFrontend(data.damage_severity || data.severity || data.damageSeverity),
     damageDescription: data.damage_description || data.damageDescription || data.description || '',
     thirdPartyInvolved: data.third_party_involved ?? data.thirdPartyInvolved ?? false,
     thirdPartyDetails: data.third_party_details || data.thirdPartyDetails,
     policeReportNumber: data.police_report_number || data.policeReportNumber,
-    estimatedRepairCost: Number(data.estimated_repair_cost ?? data.estimatedRepairCost ?? 0),
+    estimatedRepairCost: estimatedDamageCost,
+    estimatedDamageCost,
     actualRepairCost: data.actual_repair_cost !== undefined ? Number(data.actual_repair_cost) : data.actualRepairCost,
     insuranceClaimId: data.insurance_claim_id || data.insuranceClaimId,
     insuranceClaimStatus: data.insurance_claim_status || data.insuranceClaimStatus || 'filed',
@@ -85,7 +74,7 @@ export const accidentsApi = {
       queryParams.vehicle_id = params.vehicleId;
     }
 
-    const response = await apiClient.get<any>('/fleet/accidents/', { params: queryParams });
+    const response = await apiClient.get<any>('/maintenance/accidents/', { params: queryParams });
     const rawList = Array.isArray(response.data)
       ? response.data
       : (response.data?.results || response.data?.data || []);
@@ -95,7 +84,7 @@ export const accidentsApi = {
   reportAccident: async (payload: Partial<AccidentReport>): Promise<AccidentReport> => {
     const backendData = toBackendAccidentPayload(payload);
     try {
-      const response = await apiClient.post<any>('/fleet/accidents/', backendData);
+      const response = await apiClient.post<any>('/maintenance/accidents/', backendData);
       return normalizeAccidentResponse(response.data);
     } catch (err: any) {
       if (err?.status === 400 || err?.response?.status === 400 || err?.errors || err?.code === 'VALIDATION_ERROR') {

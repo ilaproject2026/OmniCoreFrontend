@@ -153,7 +153,7 @@ export const normalizeTenantResponse = (data: any): Tenant => {
     address: data.address || '',
     verticals:
       Array.isArray(data.verticals) && data.verticals.length > 0
-        ? data.verticals
+        ? data.verticals.map((vertical: any) => typeof vertical === 'string' ? vertical.toLowerCase() : String(vertical?.code || '').toLowerCase()).filter(Boolean)
         : ['freight_logistics'],
     subscription,
     createdAt: data.created_at || data.createdAt || new Date().toISOString(),
@@ -321,6 +321,18 @@ export const platformApi = {
     }
   },
 
+  updateTenantVerticals: async (tenantId: string, verticalCodes: string[]): Promise<Tenant> => {
+    const response = await apiClient.patch<any>(`/platform/tenants/${tenantId}/verticals/`, {
+      vertical_codes: verticalCodes,
+    });
+    return normalizeTenantResponse(response.data?.data || response.data);
+  },
+
+  updateTenantProfile: async (payload: { company_name: string; email: string; phone: string; address: string }): Promise<Tenant> => {
+    const response = await apiClient.patch<any>('/tenants/profile/', payload);
+    return normalizeTenantResponse(response.data?.data || response.data);
+  },
+
   getAuditLogs: async (params?: { category?: string; search?: string }): Promise<AuditLog[]> => {
     const response = await apiClient.get<AuditLog[]>('/platform/audit/', { params });
     return response.data;
@@ -373,29 +385,11 @@ export const platformApi = {
     newPackage: PackageTier,
     addons: AddonKey[]
   ): Promise<Tenant> => {
-    const packageUuid = await resolvePackageUuid(newPackage);
-    try {
-      const response = await apiClient.post<Tenant>(`/platform/tenants/${tenantId}/upgrade/`, {
-        package: packageUuid,
-        package_tier: newPackage,
-        enabledAddons: addons,
-      });
-      return response.data;
-    } catch {
-      try {
-        const patchResp = await apiClient.patch<Tenant>(`/platform/tenants/${tenantId}/`, {
-          package: packageUuid,
-          package_tier: newPackage,
-          subscription: {
-            package: newPackage,
-            package_id: packageUuid,
-            enabledAddons: addons,
-          },
-        });
-        return patchResp.data;
-      } catch (err: any) {
-        throw err;
-      }
-    }
+    if (!tenantId) throw new Error('An active tenant is required to update subscription settings.');
+    const response = await apiClient.post<any>('/subscriptions/upgrade/', {
+      package_code: newPackage.toUpperCase(),
+      addon_codes: addons,
+    });
+    return response.data?.subscription || response.data;
   },
 };

@@ -137,7 +137,6 @@ export const PACKAGES: Record<string, PackageDefinition> = {
       'Trip Dispatch & Live Tracking',
       'Workshop & Maintenance',
       'Finance & Invoicing',
-      'Warehouse & Spare Parts',
       'Single Tenant Workspace',
       'Standard Email Support',
     ],
@@ -146,7 +145,7 @@ export const PACKAGES: Record<string, PackageDefinition> = {
   standard: {
     id: 'standard',
     name: 'Standard Fleet',
-    tagline: 'Complete mid-tier suite: role permissions matrix, audit log, contracts & tenders, HR, marketing, and reports.',
+    tagline: 'Role permissions, audit, contracts, HR, marketing, and reports for growing fleets.',
     monthlyPrice: 399,
     annualPrice: 3990,
     maxVehicles: 100,
@@ -165,19 +164,17 @@ export const PACKAGES: Record<string, PackageDefinition> = {
   corporate: {
     id: 'corporate',
     name: 'Corporate Enterprise',
-    tagline: 'Advanced enterprise suite: CRM, Insurance, Courier & Express, Corporate Shuttle, and large-scale B2B contract logistics.',
+    tagline: 'Advanced B2B operations with CRM, insurance, and expanded fleet capacity.',
     monthlyPrice: 899,
     annualPrice: 8990,
     maxVehicles: 500,
     maxUsers: 50,
     coreFeatures: [
       'All Standard Fleet features',
+      'Warehouse & Spare Parts',
       'CRM Sales Pipeline & Customer Accounts',
       'Insurance & Claims Management',
-      'Courier & Express Delivery Hub (AWB Lifecycle)',
-      'School & Corporate Shuttle / Bus Pooling',
-      'Warehouse & Cross-Docking Operations',
-      'Public Booking Portal & Online Tracking',
+      'Expanded Capacity: Up to 500 Vehicles and 50 Users',
       'Priority Business Support',
     ],
     recommendedFor: 'Large B2B contract haulers, multi-hub networks, and regional logistics enterprises.',
@@ -192,6 +189,9 @@ export const PACKAGES: Record<string, PackageDefinition> = {
     maxUsers: 9999,
     coreFeatures: [
       'All Corporate Enterprise features',
+      'Courier & Express Delivery Hub (AWB Lifecycle)',
+      'School & Corporate Shuttle / Bus Pooling',
+      'Public Booking Portal & Online Tracking',
       'Multiple Tenant Creation & Orchestration',
       'Real-Time Cold Chain IoT Telemetry',
       'Predictive Maintenance AI',
@@ -218,30 +218,31 @@ export const TIER_DISPLAY_NAMES: Record<PackageTier, string> = {
 };
 
 export const MODULE_REQUIRED_TIERS: Record<string, PackageTier> = {
-  // Base Tier (Level 1) - Available in Basic, Standard, Enterprise
+  // Core tier (Level 1) - Available in Basic and inherited by higher tiers
   dashboard: 'basic',
   fleet: 'basic',
   drivers: 'basic',
   trips: 'basic',
   maintenance: 'basic',
   finance: 'basic',
-  warehouse: 'basic',
+  warehouse: 'corporate',
   settings: 'basic',
   notifications: 'basic',
 
-  // Mid Tier (Level 2) - Available in Standard and Enterprise (LOCKED in Basic)
+  // Standard includes governance and reporting.
   roles: 'standard',
   audit: 'standard',
   contracts: 'standard',
   hr: 'standard',
   marketing: 'standard',
   reports: 'standard',
-  insurance: 'standard',
+  // Corporate adds CRM and insurance.
+  insurance: 'corporate',
+  crm: 'corporate',
 
   // Top Tier (Level 3) - Available ONLY in Enterprise (LOCKED in Basic and Mid)
   courier: 'enterprise',
   shuttle: 'enterprise',
-  crm: 'enterprise',
   public_portal: 'enterprise',
   multiple_tenants: 'enterprise',
 };

@@ -27,16 +27,12 @@ export async function resolveCustomerUuid(
       if (candidateName) {
         const target = candidateName.trim().toLowerCase();
         const matched = custList.find((c) => {
-          const comp = (c.company_name || c.name || '').toLowerCase();
-          return comp.includes(target) || target.includes(comp);
+          const comp = (c.company_name || c.name || '').trim().toLowerCase();
+          return comp === target;
         });
         if (matched && isUuid(matched.id)) {
           return matched.id;
         }
-      }
-      const firstValid = custList.find((c) => isUuid(c.id));
-      if (firstValid) {
-        return firstValid.id;
       }
     }
 
@@ -72,6 +68,9 @@ export const normalizeBookingResponse = (data: any): Booking => {
     bookingCode: data.booking_number || data.bookingCode || `BK-${data.id || '2026'}`,
     customerId: typeof data.customer === 'string' ? data.customer : data.customer?.id,
     customerName: data.customer_name || data.customerName || data.customer?.company_name || 'Client',
+    customerPhone: data.customer_phone || data.customerPhone || data.customer?.phone || '',
+    vertical: data.vertical || 'freight_logistics',
+    vehicleType: data.vehicle_type || data.vehicleType,
     pickupLocation: data.pickup_location || data.pickupLocation || '',
     dropoffLocation: data.dropoff_location || data.dropoffLocation || '',
     cargoDescription: data.cargo_type || data.cargoDescription || '',
@@ -80,6 +79,15 @@ export const normalizeBookingResponse = (data: any): Booking => {
     estimatedAmount: Number(data.commercial_rate ?? data.estimatedAmount ?? 0),
     status: (data.status || 'pending').toLowerCase() as any,
   };
+};
+
+const mapBookingStatusToBackend = (status?: string): string => {
+  const normalized = (status || '').toUpperCase();
+  if (normalized === 'DRAFT') return 'DRAFT';
+  if (normalized === 'ALLOCATED' || normalized === 'DISPATCHED') return 'ALLOCATED';
+  if (normalized === 'CANCELLED' || normalized === 'CANCELED') return 'CANCELLED';
+  // A newly submitted customer booking is confirmed; PENDING is not a backend choice.
+  return 'CONFIRMED';
 };
 
 export const normalizeTripResponse = (data: any): Trip => {
@@ -147,16 +155,7 @@ export const tripsApi = {
       queryParams.tenant_id = activeTenantId;
     }
 
-    let response;
-    try {
-      response = await apiClient.get<any>('/bookings/', { params: queryParams });
-    } catch (err: any) {
-      if (err?.response?.status === 404) {
-        response = await apiClient.get<any>('/trips/bookings/', { params: queryParams });
-      } else {
-        throw err;
-      }
-    }
+    const response = await apiClient.get<any>('/trips/bookings/', { params: queryParams });
     let raw: any[] = Array.isArray(response.data) ? response.data : (response.data?.results || response.data?.data || []);
     if (activeTenantId) {
       raw = raw.filter((item: any) => {
@@ -182,6 +181,16 @@ export const tripsApi = {
       );
     }
 
+    // Keep edited client contact details in CRM and ensure the booking remains linked
+    // to the correct customer instead of silently falling back to the first CRM entry.
+    if (customerUuid && payload.customerName) {
+      await apiClient.patch(`/crm/customers/${customerUuid}/`, {
+        company_name: payload.customerName,
+        contact_person: payload.customerName,
+        phone: payload.customerPhone || '',
+      });
+    }
+
     const backendData: Record<string, any> = {
       pickup_location: payload.pickupLocation,
       dropoff_location: payload.dropoffLocation,
@@ -189,33 +198,68 @@ export const tripsApi = {
       cargo_weight_kg: payload.estimatedWeightKg || (payload as any).cargo_weight_kg,
       scheduled_date: payload.scheduledPickupTime || (payload as any).scheduled_date || new Date().toISOString().split('T')[0],
       commercial_rate: payload.estimatedAmount || (payload as any).commercial_rate || 0,
+      vertical: payload.vertical || (payload as any).vertical || 'freight_logistics',
+      vehicle_type: payload.vehicleType || (payload as any).vehicle_type || 'heavy_truck',
       notes: (payload as any).notes || '',
-      status: (payload.status || 'PENDING').toUpperCase(),
+      status: mapBookingStatusToBackend(payload.status),
     };
 
     if (customerUuid) {
       backendData.customer = customerUuid;
     }
 
-    let response;
     try {
-      response = await apiClient.post<any>('/bookings/', backendData);
+      const response = await apiClient.post<any>('/trips/bookings/', backendData);
+      return normalizeBookingResponse(response.data);
     } catch (err: any) {
-      if (err?.response?.status === 404) {
-        response = await apiClient.post<any>('/trips/bookings/', backendData);
-      } else {
-        if (err?.status === 400 || err?.response?.status === 400 || err?.errors || err?.code === 'VALIDATION_ERROR') {
-          const backendMessage =
-            err?.response?.data?.error?.message ||
-            err?.response?.data?.message ||
-            err?.message ||
-            'Booking creation failed on backend validation.';
-          throw new Error(backendMessage);
-        }
-        throw err;
+      if (err?.status === 400 || err?.response?.status === 400 || err?.errors || err?.code === 'VALIDATION_ERROR') {
+        const backendMessage =
+          err?.response?.data?.error?.message ||
+          err?.response?.data?.message ||
+          err?.message ||
+          'Booking creation failed on backend validation.';
+        const fieldErrors = err?.response?.data?.error?.fields || err?.response?.data?.fields || err?.errors?.error?.fields;
+        const details = fieldErrors
+          ? Object.entries(fieldErrors).flatMap(([field, value]) => (Array.isArray(value) ? value : [value]).map((message) => `${field}: ${String(message)}`)).join(' | ')
+          : '';
+        throw new Error(details ? `${backendMessage} (${details})` : backendMessage);
       }
+      throw err;
     }
+  },
+
+  updateBooking: async (id: string, payload: Partial<Booking>): Promise<Booking> => {
+    let customerUuid = isUuid(payload.customerId) ? payload.customerId : undefined;
+    if (!customerUuid && payload.customerName) {
+      customerUuid = await resolveCustomerUuid(undefined, payload.customerName, {
+        phone: payload.customerPhone,
+        address: payload.pickupLocation,
+      });
+    }
+    if (customerUuid && payload.customerName) {
+      await apiClient.patch(`/crm/customers/${customerUuid}/`, {
+        company_name: payload.customerName,
+        contact_person: payload.customerName,
+        phone: payload.customerPhone || '',
+      });
+    }
+    const data: Record<string, any> = {
+      pickup_location: payload.pickupLocation,
+      dropoff_location: payload.dropoffLocation,
+      cargo_type: payload.cargoDescription || '',
+      commercial_rate: payload.estimatedAmount ?? 0,
+      vertical: payload.vertical || 'freight_logistics',
+      vehicle_type: payload.vehicleType || 'heavy_truck',
+    };
+    if (payload.estimatedWeightKg !== undefined) data.cargo_weight_kg = payload.estimatedWeightKg;
+    if (payload.scheduledPickupTime) data.scheduled_date = payload.scheduledPickupTime;
+    if (customerUuid) data.customer = customerUuid;
+    const response = await apiClient.patch<any>(`/trips/bookings/${id}/`, data);
     return normalizeBookingResponse(response.data);
+  },
+
+  deleteBooking: async (id: string): Promise<void> => {
+    await apiClient.delete(`/trips/bookings/${id}/`);
   },
 
   getTrips: async (params?: { status?: string; vehicleId?: string; search?: string }): Promise<Trip[]> => {
@@ -320,12 +364,7 @@ export const tripsApi = {
     // 1. Resolve booking details from backend if available
     let bk: Booking | null = null;
     try {
-      let bRes;
-      try {
-        bRes = await apiClient.get<any>(`/bookings/${bookingId}/`);
-      } catch {
-        bRes = await apiClient.get<any>(`/trips/bookings/${bookingId}/`);
-      }
+      const bRes = await apiClient.get<any>(`/trips/bookings/${bookingId}/`);
       if (bRes?.data) {
         bk = normalizeBookingResponse(bRes.data);
       }
@@ -387,13 +426,9 @@ export const tripsApi = {
       // Update booking status to dispatched if it exists in backend
       if (isUuid(bookingId)) {
         try {
-          await apiClient.patch(`/bookings/${bookingId}/`, { status: 'dispatched' });
+          await apiClient.patch(`/trips/bookings/${bookingId}/`, { status: 'dispatched' });
         } catch {
-          try {
-            await apiClient.patch(`/trips/bookings/${bookingId}/`, { status: 'dispatched' });
-          } catch {
-            // Ignore if booking endpoint route differs
-          }
+          // Ignore if the booking was removed or is no longer accessible.
         }
       }
 

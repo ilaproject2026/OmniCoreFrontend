@@ -1180,6 +1180,7 @@ export const MaintenanceHub: React.FC = () => {
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (!newOrder.vehicleId) return;
             createOrderMutation.mutate(newOrder);
           }}
           className="space-y-4 text-xs"
@@ -1240,21 +1241,24 @@ export const MaintenanceHub: React.FC = () => {
             <Select
               label="Select Fleet Vehicle"
               required
-              value={newOrder.vehicleReg}
+              value={newOrder.vehicleId}
               onChange={(e) => {
-                const reg = e.target.value;
-                const v = vehicles.find((veh) => veh.registrationNumber === reg);
+                const vehicleId = e.target.value;
+                const v = vehicles.find((veh) => veh.id === vehicleId);
                 setNewOrder({
                   ...newOrder,
-                  vehicleReg: reg,
-                  vehicleId: v ? v.id : 'veh_01',
+                  vehicleReg: v?.registrationNumber || '',
+                  vehicleId: v?.id || '',
                   odometerAtService: v ? v.odometerKm : newOrder.odometerAtService,
                 });
               }}
-              options={vehicles.map((v) => ({
-                value: v.registrationNumber,
-                label: `${v.registrationNumber} — ${v.year} ${v.make} ${v.model} (${v.odometerKm.toLocaleString()} km)`,
-              }))}
+              options={[
+                { value: '', label: 'Choose a fleet vehicle', disabled: true },
+                ...vehicles.map((v) => ({
+                  value: v.id,
+                  label: `${v.registrationNumber} — ${v.year} ${v.make} ${v.model} (${v.odometerKm.toLocaleString()} km)`,
+                })),
+              ]}
             />
 
             {/* Service Type */}
@@ -1379,7 +1383,7 @@ export const MaintenanceHub: React.FC = () => {
             <Button variant="outline" size="sm" type="button" onClick={() => setIsNewOrderModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" size="sm" type="submit" isLoading={createOrderMutation.isPending}>
+            <Button variant="primary" size="sm" type="submit" disabled={!newOrder.vehicleId || createOrderMutation.isPending} isLoading={createOrderMutation.isPending}>
               Issue Repair Order
             </Button>
           </div>

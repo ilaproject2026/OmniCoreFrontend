@@ -19,13 +19,20 @@ import { Input } from '../../components/common/Input';
 export const PublicPortalLayout: React.FC = () => {
   const { tenantSlug = 'workspace' } = useParams<{ tenantSlug: string }>();
   const [cms, setCms] = useState<TenantPublicCms | null>(null);
+  const [cmsError, setCmsError] = useState<string | null>(null);
   const [trackingInput, setTrackingInput] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
     const fetchCms = async () => {
-      const data = await publicPortalApi.getTenantCms(tenantSlug);
-      setCms(data);
+      try {
+        setCmsError(null);
+        const data = await publicPortalApi.getTenantCms(tenantSlug);
+        setCms(data);
+      } catch (error) {
+        setCms(null);
+        setCmsError(error instanceof Error ? error.message : 'This public site could not be loaded.');
+      }
     };
     fetchCms();
   }, [tenantSlug]);
@@ -125,6 +132,7 @@ export const PublicPortalLayout: React.FC = () => {
 
       {/* Main Body */}
       <main className="flex-1">
+        {cmsError && <div role="alert" className="mx-auto mt-4 max-w-4xl px-4 text-center text-xs text-amber-300">{cmsError}</div>}
         <Outlet context={{ cms }} />
       </main>
 

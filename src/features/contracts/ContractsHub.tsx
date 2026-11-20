@@ -37,12 +37,19 @@ export const ContractsHub: React.FC = () => {
   const [isTenderModalOpen, setIsTenderModalOpen] = useState(false);
   const [isNewContractModalOpen, setIsNewContractModalOpen] = useState(false);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
+  const [tenderToAward, setTenderToAward] = useState<Tender | null>(null);
+  const [awardForm, setAwardForm] = useState({
+    customerId: '', startDate: new Date().toISOString().slice(0, 10),
+    endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    totalContractValue: 0, minimumMonthlyCommitment: 0, paymentTermsDays: 30,
+  });
 
   // Proposal cost estimation state
   const [newTender, setNewTender] = useState({
     title: '',
     clientName: '',
     industry: '',
+    submissionDeadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
     estimatedValue: 1200000,
     estimatedVehicleRequired: 6,
     fleetCosts: 450000,
@@ -57,10 +64,7 @@ export const ContractsHub: React.FC = () => {
     customerName: '',
     customerId: '',
     totalContractValue: 500000,
-    slaTargetPercent: 98,
-    minMonthlyTrips: 40,
-    dedicatedVehiclesCount: 4,
-    billingCycle: 'monthly' as const,
+    minimumMonthlyCommitment: 0,
     paymentTermsDays: 30,
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -94,7 +98,8 @@ export const ContractsHub: React.FC = () => {
         title: data.title,
         clientName: data.clientName,
         industry: data.industry,
-        estimatedValue: data.estimatedValue,
+        submissionDeadline: data.submissionDeadline,
+        estimatedValue: data.fleetCosts + data.fuelEstimates + data.crewPayroll + data.margins,
         estimatedVehicleRequired: data.estimatedVehicleRequired,
         costBreakdown: {
           fleetCosts: data.fleetCosts,
@@ -113,15 +118,10 @@ export const ContractsHub: React.FC = () => {
     mutationFn: (data: typeof newContractForm) =>
       contractsApi.createContract({
         title: data.title,
-        clientName: data.customerName,
         customerName: data.customerName,
-        customerId: data.customerId || undefined,
+        customerId: data.customerId,
         totalContractValue: data.totalContractValue,
-        slaTargetPercent: data.slaTargetPercent,
-        minMonthlyTrips: data.minMonthlyTrips,
-        dedicatedVehiclesCount: data.dedicatedVehiclesCount,
-        billingCycle: data.billingCycle,
-        paymentTerms: `Net ${data.paymentTermsDays} Days`,
+        minimumMonthlyCommitment: data.minimumMonthlyCommitment,
         paymentTermsDays: data.paymentTermsDays,
         startDate: data.startDate,
         endDate: data.endDate,
@@ -133,10 +133,11 @@ export const ContractsHub: React.FC = () => {
   });
 
   const awardTenderMutation = useMutation({
-    mutationFn: (tenderId: string) => contractsApi.awardTenderToContract(tenderId),
+    mutationFn: ({ tenderId, payload }: { tenderId: string; payload: typeof awardForm }) => contractsApi.awardTenderToContract(tenderId, payload),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['tenders'] });
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
+      setTenderToAward(null);
       setActiveTab('contracts');
       setSelectedContract(result.contract);
     },
@@ -212,6 +213,7 @@ export const ContractsHub: React.FC = () => {
       header: 'Status',
       accessor: (r) => r.status,
       render: (val: string) => {
+        if (val === 'pending_approval') return <Badge variant="warning" dot>Pending Approval</Badge>;
         if (val === 'active') return <Badge variant="success" dot>Active SLA</Badge>;
         if (val === 'expiring_soon') return <Badge variant="warning" dot>Renewal Due</Badge>;
         return <Badge variant="default">{val}</Badge>;
@@ -293,7 +295,10 @@ export const ContractsHub: React.FC = () => {
           <Button
             size="sm"
             variant="primary"
-            onClick={() => awardTenderMutation.mutate(row.id)}
+            onClick={() => {
+              setTenderToAward(row);
+              setAwardForm((form) => ({ ...form, customerId: '', totalContractValue: row.estimatedValue || 0 }));
+            }}
             isLoading={awardTenderMutation.isPending}
             leftIcon={<Award className="h-3.5 w-3.5" />}
           >
@@ -572,6 +577,7 @@ export const ContractsHub: React.FC = () => {
           }}
           className="space-y-4 text-xs"
         >
+          {createContractMutation.isError && <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">{(createContractMutation.error as Error)?.message || 'Could not create contract.'}</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Contract Agreement Title"
@@ -619,37 +625,16 @@ export const ContractsHub: React.FC = () => {
             />
 
             <Input
-              label="Target SLA Performance (%)"
+              label="Minimum Monthly Commitment ($)"
               type="number"
-              value={newContractForm.slaTargetPercent}
-              onChange={(e) => setNewContractForm({ ...newContractForm, slaTargetPercent: Number(e.target.value) })}
+              min="0"
+              value={newContractForm.minimumMonthlyCommitment}
+              onChange={(e) => setNewContractForm({ ...newContractForm, minimumMonthlyCommitment: Number(e.target.value) })}
             />
 
-            <Input
-              label="Dedicated Vehicles Assigned"
-              type="number"
-              value={newContractForm.dedicatedVehiclesCount}
-              onChange={(e) => setNewContractForm({ ...newContractForm, dedicatedVehiclesCount: Number(e.target.value) })}
-            />
-
-            <Input
-              label="Minimum Monthly Guaranteed Trips"
-              type="number"
-              value={newContractForm.minMonthlyTrips}
-              onChange={(e) => setNewContractForm({ ...newContractForm, minMonthlyTrips: Number(e.target.value) })}
-            />
-
-            <Select
-              label="Billing Cycle"
-              value={newContractForm.billingCycle}
-              onChange={(e) => setNewContractForm({ ...newContractForm, billingCycle: e.target.value as any })}
-              options={[
-                { value: 'monthly', label: 'Monthly Invoicing' },
-                { value: 'biweekly', label: 'Bi-Weekly Invoicing' },
-                { value: 'quarterly', label: 'Quarterly Invoicing' },
-                { value: 'per_trip', label: 'Per-Trip Settlement' },
-              ]}
-            />
+            <Input label="Payment Terms (Days)" type="number" min="0" required value={newContractForm.paymentTermsDays} onChange={(e) => setNewContractForm({ ...newContractForm, paymentTermsDays: Number(e.target.value) })} />
+            <Input label="Contract Start Date" type="date" required value={newContractForm.startDate} onChange={(e) => setNewContractForm({ ...newContractForm, startDate: e.target.value })} />
+            <Input label="Contract End Date" type="date" required value={newContractForm.endDate} onChange={(e) => setNewContractForm({ ...newContractForm, endDate: e.target.value })} />
           </div>
 
           <div className="mt-6 pt-4 border-t border-slate-800 flex justify-end gap-3">
@@ -678,6 +663,7 @@ export const ContractsHub: React.FC = () => {
           }}
           className="space-y-4 text-xs"
         >
+          {tenderMutation.isError && <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">{(tenderMutation.error as Error)?.message || 'Could not create tender.'}</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Tender Project Title"
@@ -694,6 +680,8 @@ export const ContractsHub: React.FC = () => {
               value={newTender.clientName}
               onChange={(e) => setNewTender({ ...newTender, clientName: e.target.value })}
             />
+
+            <Input label="Submission Deadline" type="datetime-local" required value={newTender.submissionDeadline} onChange={(e) => setNewTender({ ...newTender, submissionDeadline: e.target.value })} />
 
             <Input
               label="Industry Classification"
@@ -757,6 +745,22 @@ export const ContractsHub: React.FC = () => {
               Save & Build Proposal
             </Button>
           </div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={Boolean(tenderToAward)} onClose={() => setTenderToAward(null)} title="Award Tender & Create Contract" size="lg">
+        <form onSubmit={(e) => { e.preventDefault(); if (tenderToAward) awardTenderMutation.mutate({ tenderId: tenderToAward.id, payload: awardForm }); }} className="space-y-4 text-xs">
+          {awardTenderMutation.isError && <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">{(awardTenderMutation.error as Error)?.message || 'Could not award tender.'}</p>}
+          {tenderToAward && <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3"><p className="font-semibold text-white">{tenderToAward.tenderCode} · {tenderToAward.title}</p><p className="mt-1 text-slate-400">Awarding creates an accepted proposal and a contract pending legal/finance approval, linked to this tender.</p></div>}
+          <Select label="Awarded CRM Customer" required value={awardForm.customerId} onChange={(e) => setAwardForm({ ...awardForm, customerId: e.target.value })} options={[{ value: '', label: '-- Select customer --' }, ...customers.map((customer) => ({ value: customer.id, label: customer.companyName || customer.name }))]} />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Input label="Contract Start Date" type="date" required value={awardForm.startDate} onChange={(e) => setAwardForm({ ...awardForm, startDate: e.target.value })} />
+            <Input label="Contract End Date" type="date" required min={awardForm.startDate} value={awardForm.endDate} onChange={(e) => setAwardForm({ ...awardForm, endDate: e.target.value })} />
+            <Input label="Awarded Contract Value ($)" type="number" min="0" required value={awardForm.totalContractValue} onChange={(e) => setAwardForm({ ...awardForm, totalContractValue: Number(e.target.value) })} />
+            <Input label="Minimum Monthly Commitment ($)" type="number" min="0" value={awardForm.minimumMonthlyCommitment} onChange={(e) => setAwardForm({ ...awardForm, minimumMonthlyCommitment: Number(e.target.value) })} />
+            <Input label="Payment Terms (Days)" type="number" min="0" required value={awardForm.paymentTermsDays} onChange={(e) => setAwardForm({ ...awardForm, paymentTermsDays: Number(e.target.value) })} />
+          </div>
+          <div className="flex justify-end gap-2 border-t border-slate-800 pt-3"><Button type="button" variant="outline" onClick={() => setTenderToAward(null)}>Cancel</Button><Button type="submit" isLoading={awardTenderMutation.isPending}>Confirm Award & Create Contract</Button></div>
         </form>
       </Modal>
     </div>

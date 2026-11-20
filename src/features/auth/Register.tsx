@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/common/Button';
@@ -14,12 +14,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Sparkles,
-  Zap,
   Check,
-  Layers,
-  ShieldCheck,
-  Truck,
-  Users,
 } from 'lucide-react';
 import { PackageTier } from '../../types';
 import { PACKAGES, TIER_DISPLAY_NAMES } from '../../config/constants';
@@ -46,6 +41,15 @@ export const Register: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showRegistration, setShowRegistration] = useState(false);
+  const registrationFormRef = useRef<HTMLFormElement>(null);
+
+  const choosePlanAndContinue = (tier: PackageTier) => {
+    setSelectedTier(tier);
+    setShowRegistration(true);
+    requestAnimationFrame(() => registrationFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
 
   const plans: Array<{
     id: PackageTier;
@@ -85,7 +89,7 @@ export const Register: React.FC = () => {
       badge: 'Most Popular',
       badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
       highlight: true,
-      tagline: 'Full operations + Role Permissions, Audit, CRM & Reports.',
+      tagline: 'Role permissions, audit, contracts, HR, marketing, and reports for growing fleets.',
       tenantLimit: 'Single Tenant Only',
       keyFeatures: [
         'All Basic Starter features',
@@ -103,15 +107,15 @@ export const Register: React.FC = () => {
       annualMonthlyPrice: Math.round((PACKAGES.corporate?.annualPrice || 8990) / 12),
       badge: 'Mid-Market B2B',
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-      tagline: 'Advanced B2B contracts, CRM, Insurance, Courier & Shuttle.',
+      tagline: 'Advanced B2B operations with CRM, insurance, and expanded fleet capacity.',
       tenantLimit: 'Single Large Enterprise Tenant',
       keyFeatures: [
         'All Standard Fleet features',
         'CRM Sales Pipeline & Deals',
-        'Insurance & Claim Tracking',
-        'Courier & Express Delivery Hub',
-        'School & Corporate Shuttle',
-        'Warehouse & Cross-Docking',
+        'Insurance & Claims Management',
+        'Capacity for Up to 500 Vehicles',
+        'Up to 50 User Seats',
+        'Priority Business Support',
       ],
     },
     {
@@ -150,8 +154,8 @@ export const Register: React.FC = () => {
       setError('Please provide a valid Work Email Address.');
       return;
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters in length.');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters in length.');
       return;
     }
     if (password !== confirmPassword) {
@@ -163,7 +167,7 @@ export const Register: React.FC = () => {
       localStorage.setItem('omni_org_owner_email', email.trim().toLowerCase());
       localStorage.setItem('omni_registered_company', companyName.trim());
 
-      await register({
+      const registration = await register({
         company_name: companyName.trim(),
         first_name: firstName.trim() || 'Admin',
         last_name: lastName.trim() || 'User',
@@ -174,11 +178,18 @@ export const Register: React.FC = () => {
         package_tier: selectedTier,
       });
 
+      const confirmedTier = registration.packageTier;
+      const planMessage = !registration.packageVerified
+        ? `Your organization was created, but we could not confirm the ${TIER_DISPLAY_NAMES[selectedTier]} package from the backend. Please check the subscription in your workspace.`
+        : confirmedTier !== selectedTier
+          ? `Your organization was created, but the backend assigned ${TIER_DISPLAY_NAMES[confirmedTier || 'standard']} instead of ${TIER_DISPLAY_NAMES[selectedTier]}.`
+          : `Welcome to OmniCore! ${companyName} is active on the ${TIER_DISPLAY_NAMES[confirmedTier || selectedTier]} plan.`;
+      setSuccessMessage(planMessage);
       setIsSuccess(true);
       setTimeout(() => {
-        navigate('/platform/dashboard', {
+        navigate('/app/dashboard', {
           state: {
-            successMessage: `Welcome to OmniCore! ${companyName} has been initialized with the ${TIER_DISPLAY_NAMES[selectedTier]} plan.`,
+            successMessage: planMessage,
           },
         });
       }, 500);
@@ -198,28 +209,26 @@ export const Register: React.FC = () => {
   return (
     <div className="w-full">
       {/* 1. TOP AUTH MODE SWITCHER */}
-      <div className="flex items-center justify-between p-1 mb-6 rounded-xl bg-slate-900/80 border border-slate-800">
-        <button
-          type="button"
-          className="flex-1 py-2 px-3 rounded-lg text-xs font-semibold text-white bg-blue-600 shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          <span>Choose Plan & Register</span>
-        </button>
+      <div className="sticky top-0 z-20 -mx-4 mb-6 flex items-center justify-between border-b border-slate-700/70 bg-[#0b0f17]/95 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8 lg:-mx-10 lg:px-10">
+        <Link to="/auth/register" className="flex items-center gap-2 text-sm font-semibold text-white">
+          <Sparkles className="h-4 w-4 text-cyan-400" />
+          <span>Create your workspace</span>
+        </Link>
         <Link
           to="/auth/login"
-          className="flex-1 py-2 px-3 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/50 transition-all flex items-center justify-center gap-1.5"
+          className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-blue-500 hover:bg-slate-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
         >
-          <span>Sign In to Existing Account</span>
+          Sign in
         </Link>
       </div>
 
       {/* 2. HEADER */}
       <div className="mb-6">
-        <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+        <p className="mb-2 text-xs font-bold uppercase tracking-[0.24em] text-cyan-300">One platform. Every mile.</p>
+        <h2 className="bg-gradient-to-r from-white via-blue-100 to-cyan-300 bg-clip-text text-4xl font-black tracking-tight text-transparent sm:text-5xl">
           <span>Get Started with OmniCore</span>
         </h2>
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-400 sm:text-base">
           Select your subscription tier below. Each tier includes automated vehicle telematics, role permissions, and operational dashboards.
         </p>
       </div>
@@ -234,16 +243,16 @@ export const Register: React.FC = () => {
       {isSuccess && (
         <div className="mb-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-emerald-400 flex items-center gap-2.5 animate-pulse">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-          <span>Organization successfully registered! Launching your workspace...</span>
+          <span>{successMessage || 'Organization successfully registered! Launching your workspace...'}</span>
         </div>
       )}
 
       {/* 3. SUBSCRIPTION PLAN SELECTION (DISPLAYED INITIALLY) */}
-      <div className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:p-5 backdrop-blur-sm">
+      <section aria-labelledby="plans-heading" className="mb-8 rounded-2xl border border-slate-700/80 bg-slate-900/70 p-4 shadow-2xl shadow-blue-950/20 backdrop-blur-sm sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 pb-3 border-b border-slate-800/80">
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">Step 1</span>
-            <h3 className="text-sm font-semibold text-white">Choose Your Organization Plan</h3>
+            <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">Plans</span>
+            <h3 id="plans-heading" className="text-xl font-bold text-white">Choose the right plan for your fleet</h3>
           </div>
 
           {/* Billing Cycle Toggle */}
@@ -275,17 +284,16 @@ export const Register: React.FC = () => {
         </div>
 
         {/* 4 Subscription Plan Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {plans.map((p) => {
             const isSelected = selectedTier === p.id;
             const price = billingCycle === 'monthly' ? p.monthlyPrice : p.annualMonthlyPrice;
 
             return (
-              <div
+              <article
                 key={p.id}
-                onClick={() => setSelectedTier(p.id)}
                 className={cn(
-                  'relative rounded-xl border p-3.5 transition-all cursor-pointer flex flex-col justify-between group text-left',
+                  'relative min-w-0 rounded-xl border p-5 transition-all flex flex-col text-left',
                   isSelected
                     ? 'border-blue-500 bg-gradient-to-b from-blue-950/40 via-slate-900 to-slate-900/90 shadow-lg shadow-blue-500/10 ring-1 ring-blue-500'
                     : 'border-slate-800/90 bg-slate-900/40 hover:border-slate-700 hover:bg-slate-800/30'
@@ -323,7 +331,7 @@ export const Register: React.FC = () => {
                     <span className="text-[11px] text-slate-400">/mo</span>
                   </div>
 
-                  <p className="text-[11px] text-slate-400 mb-2 leading-relaxed line-clamp-2">{p.tagline}</p>
+                  <p className="min-h-10 text-xs text-slate-300 mb-3 leading-relaxed">{p.tagline}</p>
 
                   <div className="pt-2 border-t border-slate-800/80 mb-2">
                     <span
@@ -337,25 +345,42 @@ export const Register: React.FC = () => {
                   </div>
                 </div>
 
-                <ul className="space-y-1 text-[11px] text-slate-300 pt-1">
-                  {p.keyFeatures.slice(0, 3).map((f, i) => (
+                <ul className="space-y-2 text-xs text-slate-300 pt-1 flex-1">
+                  {p.keyFeatures.map((f, i) => (
                     <li key={i} className="flex items-start gap-1.5">
-                      <Check className="h-3 w-3 text-emerald-400 shrink-0 mt-0.5" />
-                      <span className="truncate">{f}</span>
+                      <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                      <span className="leading-snug">{f}</span>
                     </li>
                   ))}
                 </ul>
-              </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    choosePlanAndContinue(p.id);
+                  }}
+                  className={cn(
+                    'mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300',
+                    isSelected
+                      ? 'bg-blue-600 text-white hover:bg-blue-500'
+                      : 'border border-slate-700 bg-slate-800/70 text-slate-100 hover:border-blue-500 hover:bg-slate-800'
+                  )}
+                >
+                  Register with this plan <ArrowRight className="h-4 w-4" />
+                </button>
+              </article>
             );
           })}
         </div>
-      </div>
+      </section>
 
       {/* 4. ORGANIZATION AND CREDENTIALS FORM */}
-      <form onSubmit={handleSubmit} className="space-y-4">
+      {showRegistration && <form ref={registrationFormRef} id="registration-form" onSubmit={handleSubmit} className="scroll-mt-6 space-y-4">
         <div className="pb-1">
-          <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">Step 2</span>
-          <h3 className="text-sm font-semibold text-white">Organization & Admin Credentials</h3>
+          <button type="button" onClick={() => setShowRegistration(false)} className="mb-4 text-sm font-medium text-cyan-300 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 rounded">
+            ← Back to plans
+          </button>
+          <span className="block text-xs font-bold uppercase tracking-wider text-cyan-400">Selected plan · {currentPlan.name}</span>
+          <h3 className="mt-1 text-xl font-bold text-white">Set up your organization</h3>
         </div>
 
         <Input
@@ -413,7 +438,7 @@ export const Register: React.FC = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             leftIcon={<Lock className="h-4 w-4 text-slate-400" />}
-            helperText="Minimum 6 characters"
+            helperText="Minimum 8 characters"
           />
           <Input
             label="Confirm Password"
@@ -441,7 +466,7 @@ export const Register: React.FC = () => {
             By registering, you agree to the OmniCore Master Services Agreement and Privacy Policy.
           </p>
         </div>
-      </form>
+      </form>}
 
       {/* 6. SIGN IN FOOTER */}
       <div className="mt-6 pt-4 border-t border-slate-800 text-center">
