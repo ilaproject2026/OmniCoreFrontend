@@ -159,6 +159,7 @@ export interface User {
   platformRole?: PlatformRole;
   tenantId?: string;
   tenantRole?: TenantRole;
+  isTenantPrimary?: boolean;
   customRoleTitle?: string;
   permissions: string[];
   mfaEnabled: boolean;
@@ -772,11 +773,14 @@ export interface Employee {
   lastName: string;
   email: string;
   phone: string;
-  department: 'Operations' | 'Fleet' | 'Finance' | 'HR' | 'Warehouse' | 'Field' | 'Admin';
-  role: TenantRole;
+  department: string;
+  designation?: string;
+  role: string;
+  roleId?: string | null;
   branchId?: string;
   joiningDate: string;
-  status: 'active' | 'on_leave' | 'resigned';
+  status: 'active' | 'on_leave' | 'probation' | 'terminated' | 'resigned';
+  accountStatus?: 'active' | 'pending' | 'expired' | 'revoked' | 'inactive' | 'not_invited';
   salary?: {
     monthlyBasic: number;
     allowances: number;

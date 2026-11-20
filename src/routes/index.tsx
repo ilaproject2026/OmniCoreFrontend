@@ -17,6 +17,7 @@ import { VerticalAccessRestricted } from '../components/feedback/VerticalAccessR
 
 // Auth Pages
 import { Login } from '../features/auth/Login';
+import { AcceptEmployeeInvitation } from '../features/auth/AcceptEmployeeInvitation';
 import { Register } from '../features/auth/Register';
 import { PlanSelectionPage } from '../features/auth/PlanSelectionPage';
 import { MfaVerification } from '../features/auth/MfaVerification';
@@ -76,6 +77,7 @@ export const AppRoutes: React.FC = () => {
       <Route path="/auth" element={<AuthLayout />}>
         <Route index element={<Navigate to="/auth/register" replace />} />
         <Route path="login" element={<Login />} />
+        <Route path="accept-invitation" element={<AcceptEmployeeInvitation />} />
         <Route path="register" element={<Register />} />
         <Route path="mfa" element={<MfaVerification />} />
         <Route path="forgot-password" element={<ForgotPassword />} />
