@@ -7,6 +7,7 @@ import { Button } from '../../components/common/Button';
 import { Tabs } from '../../components/common/Tabs';
 import { Modal } from '../../components/common/Modal';
 import { Input } from '../../components/common/Input';
+import { PhoneNumberInput } from '../../components/common/PhoneNumberInput';
 import { Select } from '../../components/common/Select';
 import { DataTable, ColumnDef } from '../../components/tables/DataTable';
 import { Lead, Customer, LeadStage, VerticalType } from '../../types';
@@ -362,12 +363,11 @@ export const CrmHub: React.FC = () => {
               onChange={(e) => setNewLead({ ...newLead, contactPerson: e.target.value })}
             />
 
-            <Input
+            <PhoneNumberInput
               label="Phone Number"
               required
-              placeholder="e.g. +1 (312) 555-0922"
               value={newLead.phone}
-              onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
+              onChange={(phone) => setNewLead({ ...newLead, phone })}
             />
           </div>
 
@@ -455,12 +455,11 @@ export const CrmHub: React.FC = () => {
               onChange={(e) => setNewCustomer({ ...newCustomer, contactPerson: e.target.value })}
             />
 
-            <Input
+            <PhoneNumberInput
               label="Phone Number"
               required
-              placeholder="e.g. +1 (847) 555-8900"
               value={newCustomer.phone}
-              onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+              onChange={(phone) => setNewCustomer({ ...newCustomer, phone })}
             />
           </div>
 

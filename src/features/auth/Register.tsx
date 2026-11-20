@@ -4,13 +4,13 @@ import { useAuth } from '../../contexts/AuthContext';
 import { authApi } from '../../api/auth.api';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { PhoneNumberInput } from '../../components/common/PhoneNumberInput';
 import {
   Lock,
   Mail,
   ArrowRight,
   Building2,
   User,
-  Phone,
   Crown,
   CheckCircle2,
   AlertCircle,
@@ -473,12 +473,10 @@ export const Register: React.FC = () => {
           helperText="This email will be granted root Super Admin ownership for your organization."
         />
 
-        <Input
+        <PhoneNumberInput
           label="Direct Phone / Mobile (Optional)"
-          placeholder="+1 (555) 019-2834"
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          leftIcon={<Phone className="h-4 w-4 text-slate-400" />}
+          onChange={setPhone}
         />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

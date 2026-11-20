@@ -24,6 +24,7 @@ import { StatCard } from '../../components/common/StatCard';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { Input } from '../../components/common/Input';
+import { PhoneNumberInput } from '../../components/common/PhoneNumberInput';
 import { Select } from '../../components/common/Select';
 import { Modal } from '../../components/common/Modal';
 import { Tabs } from '../../components/common/Tabs';
@@ -731,7 +732,7 @@ export const ShuttleDashboard: React.FC = () => {
           <Select label="Organization Type" value={newOrganizationForm.orgType} onChange={(e) => setNewOrganizationForm({ ...newOrganizationForm, orgType: e.target.value as 'CORPORATE' | 'SCHOOL' })} options={[{ label: 'Corporate / Employer', value: 'CORPORATE' }, { label: 'School / Academic Institution', value: 'SCHOOL' }]} />
           <div className="grid grid-cols-2 gap-3"><Input label="Organization Name" required value={newOrganizationForm.name} onChange={(e) => setNewOrganizationForm({ ...newOrganizationForm, name: e.target.value })} /><Input label="Organization Code" required value={newOrganizationForm.code} onChange={(e) => setNewOrganizationForm({ ...newOrganizationForm, code: e.target.value })} /></div>
           <Input label="Contact Person" required value={newOrganizationForm.contactPerson} onChange={(e) => setNewOrganizationForm({ ...newOrganizationForm, contactPerson: e.target.value })} />
-          <div className="grid grid-cols-2 gap-3"><Input label="Contact Email" type="email" required value={newOrganizationForm.contactEmail} onChange={(e) => setNewOrganizationForm({ ...newOrganizationForm, contactEmail: e.target.value })} /><Input label="Contact Phone" required value={newOrganizationForm.contactPhone} onChange={(e) => setNewOrganizationForm({ ...newOrganizationForm, contactPhone: e.target.value })} /></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><Input label="Contact Email" type="email" required value={newOrganizationForm.contactEmail} onChange={(e) => setNewOrganizationForm({ ...newOrganizationForm, contactEmail: e.target.value })} /><PhoneNumberInput label="Contact Phone" required value={newOrganizationForm.contactPhone} onChange={(phone) => setNewOrganizationForm({ ...newOrganizationForm, contactPhone: phone })} /></div>
           <Input label="Organization Address" required value={newOrganizationForm.address} onChange={(e) => setNewOrganizationForm({ ...newOrganizationForm, address: e.target.value })} />
           <div className="flex justify-end gap-2 border-t border-slate-800 pt-3"><Button type="button" variant="outline" onClick={() => { setIsNewOrganizationModalOpen(false); setIsNewRouteModalOpen(true); }}>Cancel</Button><Button type="submit" isLoading={createOrganizationMutation.isPending}>Save Organization</Button></div>
         </form>
@@ -811,10 +812,10 @@ export const ShuttleDashboard: React.FC = () => {
             <Input label="Employee / Student ID" required value={newPassengerForm.idNumber} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, idNumber: e.target.value })} />
             <Input label="First Name" required value={newPassengerForm.firstName} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, firstName: e.target.value })} />
             <Input label="Last Name" required value={newPassengerForm.lastName} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, lastName: e.target.value })} />
-            <Input label="Phone" type="tel" required value={newPassengerForm.phone} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, phone: e.target.value })} />
+            <PhoneNumberInput label="Phone" required value={newPassengerForm.phone} onChange={(phone) => setNewPassengerForm({ ...newPassengerForm, phone })} />
             <Input label="Email" type="email" value={newPassengerForm.email} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, email: e.target.value })} />
             <Input label="Emergency Contact Name" value={newPassengerForm.emergencyContactName} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, emergencyContactName: e.target.value })} />
-            <Input label="Emergency Contact Phone" type="tel" value={newPassengerForm.emergencyContactPhone} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, emergencyContactPhone: e.target.value })} />
+            <PhoneNumberInput label="Emergency Contact Phone" value={newPassengerForm.emergencyContactPhone} onChange={(phone) => setNewPassengerForm({ ...newPassengerForm, emergencyContactPhone: phone })} />
             <Select label="Pickup Stop (Optional)" disabled={!newPassengerForm.routeId} value={newPassengerForm.pickupStopId} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, pickupStopId: e.target.value })} options={[{ label: '-- No stop selected --', value: '' }, ...(routes.find((route) => route.id === newPassengerForm.routeId)?.stops || []).map((stop) => ({ label: `${stop.sequence}. ${stop.name}`, value: stop.id }))]} />
             <Input label="Seat Number (Optional)" value={newPassengerForm.seatNumber} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, seatNumber: e.target.value })} />
             <Input label="Assignment Effective From" type="date" required value={newPassengerForm.effectiveFrom} onChange={(e) => setNewPassengerForm({ ...newPassengerForm, effectiveFrom: e.target.value })} />

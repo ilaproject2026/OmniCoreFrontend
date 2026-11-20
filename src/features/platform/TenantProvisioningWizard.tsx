@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { PhoneNumberInput } from '../../components/common/PhoneNumberInput';
 import { Select } from '../../components/common/Select';
 import { Badge } from '../../components/common/Badge';
 import { platformApi, BACKEND_PACKAGE_UUID_FALLBACKS } from '../../api/platform.api';
@@ -428,11 +429,10 @@ export const TenantProvisioningWizard: React.FC = () => {
                 }}
               />
 
-              <Input
+              <PhoneNumberInput
                 label="Primary Contact Phone"
-                placeholder="e.g. +1 (312) 555-0199"
                 value={companyInfo.primaryContactPhone}
-                onChange={(e) => setCompanyInfo({ ...companyInfo, primaryContactPhone: e.target.value })}
+                onChange={(primaryContactPhone) => setCompanyInfo({ ...companyInfo, primaryContactPhone })}
               />
 
               <Input
@@ -746,11 +746,10 @@ export const TenantProvisioningWizard: React.FC = () => {
                 }}
               />
 
-              <Input
+              <PhoneNumberInput
                 label="Direct Phone / Mobile"
-                placeholder="e.g. +1 (555) 321-4567"
                 value={adminUser.phone}
-                onChange={(e) => setAdminUser({ ...adminUser, phone: e.target.value })}
+                onChange={(phone) => setAdminUser({ ...adminUser, phone })}
               />
 
               <div className="md:col-span-2">

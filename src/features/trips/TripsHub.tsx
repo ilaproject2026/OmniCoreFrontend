@@ -11,6 +11,7 @@ import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
 import { Input } from '../../components/common/Input';
+import { PhoneNumberInput } from '../../components/common/PhoneNumberInput';
 import { Select } from '../../components/common/Select';
 import { Trip, Booking, TripStatus, VerticalType, VehicleType, Vehicle } from '../../types';
 import { useTenant } from '../../contexts/TenantContext';
@@ -783,12 +784,11 @@ export const TripsHub: React.FC = () => {
               })}
             />
 
-            <Input
+            <PhoneNumberInput
               label="Customer Phone Contact"
               required
-              placeholder="e.g. +1 (800) 555-0199"
               value={newBooking.customerPhone}
-              onChange={(e) => setNewBooking({ ...newBooking, customerPhone: e.target.value })}
+              onChange={(customerPhone) => setNewBooking({ ...newBooking, customerPhone })}
             />
 
             <Input

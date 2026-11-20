@@ -7,6 +7,7 @@ import { Button } from '../../components/common/Button';
 import { Select } from '../../components/common/Select';
 import { Modal } from '../../components/common/Modal';
 import { Input } from '../../components/common/Input';
+import { PhoneNumberInput } from '../../components/common/PhoneNumberInput';
 import { Driver } from '../../types';
 import { DriverProfileDrawer } from './DriverProfileDrawer';
 import {
@@ -478,13 +479,11 @@ export const DriverList: React.FC = () => {
               onChange={(e) => setNewDriver({ ...newDriver, lastName: e.target.value })}
             />
 
-            <Input
+            <PhoneNumberInput
               label="Phone Number"
-              type="tel"
               required
-              placeholder="e.g. +1 (312) 555-8831"
               value={newDriver.phone}
-              onChange={(e) => setNewDriver({ ...newDriver, phone: e.target.value })}
+              onChange={(phone) => setNewDriver({ ...newDriver, phone })}
             />
 
             <Input

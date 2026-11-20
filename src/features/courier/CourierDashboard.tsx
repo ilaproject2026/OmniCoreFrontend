@@ -43,6 +43,7 @@ import { StatCard } from '../../components/common/StatCard';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { Input } from '../../components/common/Input';
+import { PhoneNumberInput } from '../../components/common/PhoneNumberInput';
 import { Select } from '../../components/common/Select';
 import { Modal } from '../../components/common/Modal';
 import { Drawer } from '../../components/common/Drawer';
@@ -1240,12 +1241,11 @@ export const CourierDashboard: React.FC = () => {
               onChange={(e) => setNewShipmentForm({ ...newShipmentForm, senderName: e.target.value })}
               placeholder="e.g. Central Medical Logistics Hub"
             />
-            <Input
+            <PhoneNumberInput
               label="Sender Phone"
               required
               value={newShipmentForm.senderPhone}
-              onChange={(e) => setNewShipmentForm({ ...newShipmentForm, senderPhone: e.target.value })}
-              placeholder="+1 555-0129"
+              onChange={(senderPhone) => setNewShipmentForm({ ...newShipmentForm, senderPhone })}
             />
           </div>
           <Input
@@ -1264,12 +1264,11 @@ export const CourierDashboard: React.FC = () => {
               onChange={(e) => setNewShipmentForm({ ...newShipmentForm, receiverName: e.target.value })}
               placeholder="e.g. St. Jude Hospital"
             />
-            <Input
+            <PhoneNumberInput
               label="Receiver Phone"
               required
               value={newShipmentForm.receiverPhone}
-              onChange={(e) => setNewShipmentForm({ ...newShipmentForm, receiverPhone: e.target.value })}
-              placeholder="+1 555-9011"
+              onChange={(receiverPhone) => setNewShipmentForm({ ...newShipmentForm, receiverPhone })}
             />
           </div>
           <Input
@@ -1495,7 +1494,7 @@ export const CourierDashboard: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Input label="Pickup Location Name" required value={stop.locationName} onChange={(e) => setPickupForm({ ...pickupForm, stops: pickupForm.stops.map((s, i) => i === index ? { ...s, locationName: e.target.value } : s) })} />
                 <Input label="Contact Person" required value={stop.contactPerson} onChange={(e) => setPickupForm({ ...pickupForm, stops: pickupForm.stops.map((s, i) => i === index ? { ...s, contactPerson: e.target.value } : s) })} />
-                <Input label="Contact Phone" required value={stop.contactPhone} onChange={(e) => setPickupForm({ ...pickupForm, stops: pickupForm.stops.map((s, i) => i === index ? { ...s, contactPhone: e.target.value } : s) })} />
+                <PhoneNumberInput label="Contact Phone" required value={stop.contactPhone} onChange={(contactPhone) => setPickupForm({ ...pickupForm, stops: pickupForm.stops.map((s, i) => i === index ? { ...s, contactPhone } : s) })} />
                 <Input label="Scheduled Pickup" type="datetime-local" required value={stop.timeWindow} onChange={(e) => setPickupForm({ ...pickupForm, stops: pickupForm.stops.map((s, i) => i === index ? { ...s, timeWindow: e.target.value } : s) })} />
                 <Input label="Pickup Address" required value={stop.address} onChange={(e) => setPickupForm({ ...pickupForm, stops: pickupForm.stops.map((s, i) => i === index ? { ...s, address: e.target.value } : s) })} />
                 <Input label="Parcel Count" type="number" min="1" required value={stop.parcelCount} onChange={(e) => setPickupForm({ ...pickupForm, stops: pickupForm.stops.map((s, i) => i === index ? { ...s, parcelCount: Math.max(1, Number(e.target.value)) } : s) })} />
@@ -1518,7 +1517,7 @@ export const CourierDashboard: React.FC = () => {
             <Input label="City" required value={hubForm.city} onChange={(e) => setHubForm({ ...hubForm, city: e.target.value })} />
             <Input label="State / Region" value={hubForm.state} onChange={(e) => setHubForm({ ...hubForm, state: e.target.value })} />
             <Input label="Postal Code" required value={hubForm.postalCode} onChange={(e) => setHubForm({ ...hubForm, postalCode: e.target.value })} />
-            <Input label="Contact Phone" value={hubForm.contactPhone} onChange={(e) => setHubForm({ ...hubForm, contactPhone: e.target.value })} />
+            <PhoneNumberInput label="Contact Phone" value={hubForm.contactPhone} onChange={(contactPhone) => setHubForm({ ...hubForm, contactPhone })} />
             <Input label="Contact Email" type="email" value={hubForm.contactEmail} onChange={(e) => setHubForm({ ...hubForm, contactEmail: e.target.value })} />
             <Input label="Floor Area (sq ft)" type="number" min="0" value={hubForm.capacitySqft} onChange={(e) => setHubForm({ ...hubForm, capacitySqft: Number(e.target.value) })} />
             <div className="md:col-span-2"><Input label="Street Address" required value={hubForm.address} onChange={(e) => setHubForm({ ...hubForm, address: e.target.value })} /></div>

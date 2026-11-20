@@ -4,6 +4,7 @@ import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { PhoneNumberInput } from '../../components/common/PhoneNumberInput';
 import { Select } from '../../components/common/Select';
 import { Tabs } from '../../components/common/Tabs';
 import { ADDONS, VERTICALS, PACKAGES } from '../../config/constants';
@@ -120,7 +121,7 @@ export const TenantSettings: React.FC = () => {
             <Input label="Company Name" value={profile.company_name} onChange={(e) => setProfile({ ...profile, company_name: e.target.value })} required />
             <Input label="Subdomain / Slug" value={`${tenant.slug}.omnicore.io`} readOnly />
             <Input label="Contact Email" type="email" value={profile.email} onChange={(e) => setProfile({ ...profile, email: e.target.value })} required />
-            <Input label="Contact Phone" value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} />
+            <PhoneNumberInput label="Contact Phone" value={profile.phone} onChange={(phone) => setProfile({ ...profile, phone })} />
             <Input label="Headquarters Address" value={profile.address} onChange={(e) => setProfile({ ...profile, address: e.target.value })} />
           </div>
           <div className="flex justify-end pt-2">

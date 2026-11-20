@@ -9,6 +9,7 @@ import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { Input } from '../../components/common/Input';
+import { PhoneNumberInput } from '../../components/common/PhoneNumberInput';
 import {
   Crown,
   Building2,
@@ -1128,12 +1129,10 @@ export const RolePermissionsMatrix: React.FC = () => {
                   onChange={(e) => setFormEmail(e.target.value)}
                   leftIcon={<Mail className="h-4 w-4" />}
                 />
-                <Input
+                <PhoneNumberInput
                   label="Phone (Optional)"
-                  placeholder="+1 (555) 000-0000"
                   value={formPhone}
-                  onChange={(e) => setFormPhone(e.target.value)}
-                  leftIcon={<Phone className="h-4 w-4" />}
+                  onChange={setFormPhone}
                 />
               </div>
 
