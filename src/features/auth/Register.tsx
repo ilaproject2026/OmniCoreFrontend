@@ -20,6 +20,7 @@ import {
 import { PackageTier } from '../../types';
 import { PACKAGES, TIER_DISPLAY_NAMES } from '../../config/constants';
 import { cn, formatCurrency } from '../../lib/utils';
+import { getApiErrorCode, getFriendlyApiErrorMessage } from '../../lib/apiErrorMessages';
 
 export const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -41,6 +42,7 @@ export const Register: React.FC = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [showRegistration, setShowRegistration] = useState(false);
@@ -54,6 +56,35 @@ export const Register: React.FC = () => {
     setShowRegistration(true);
     requestAnimationFrame(() => registrationFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
+
+  const showRequestError = (requestError: unknown, fallback: string) => {
+    const message = getFriendlyApiErrorMessage(requestError, fallback);
+    if (getApiErrorCode(requestError) === 'ACCOUNT_ALREADY_EXISTS') {
+      setWarning(message);
+      setError(null);
+      return;
+    }
+    setWarning(null);
+    setError(message);
+  };
+
+  const renderFeedback = () => (
+    <>
+      {error && (
+        <div role="alert" aria-live="assertive" className="flex items-center gap-2.5 rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-sm text-red-300">
+          <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
+          <span>{error}</span>
+        </div>
+      )}
+      {warning && (
+        <div role="alert" aria-live="polite" className="flex flex-wrap items-center gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-sm text-amber-200">
+          <AlertCircle className="h-4 w-4 shrink-0 text-amber-300" />
+          <span className="flex-1">{warning}</span>
+          <Link to="/auth/login" className="font-semibold text-amber-100 underline underline-offset-2">Sign in</Link>
+        </div>
+      )}
+    </>
+  );
 
   const plans: Array<{
     id: PackageTier;
@@ -149,6 +180,7 @@ export const Register: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setWarning(null);
 
     if (!companyName.trim()) {
       setError('Please provide your Organization / Company Name.');
@@ -181,21 +213,14 @@ export const Register: React.FC = () => {
       setOtpSent(true);
       setSuccessMessage(`If ${email.trim()} can be registered, a six-digit verification code will arrive shortly. If you already have an account, sign in or reset your password.`);
     } catch (err: any) {
-      let msg =
-        err?.response?.data?.error?.message ||
-        err?.response?.data?.message ||
-        err?.message ||
-        'Registration failed. Please review your details and try again.';
-      if (typeof msg === 'object') {
-        msg = msg?.message || msg?.detail || JSON.stringify(msg);
-      }
-      setError(typeof msg === 'string' ? msg : 'Registration failed. Please review your details and try again.');
+      showRequestError(err, 'Some registration details are invalid. Check your entries and try again.');
     }
   };
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setWarning(null);
     if (!/^\d{6}$/.test(otpCode)) {
       setError('Enter the six-digit code sent to your email.');
       return;
@@ -211,8 +236,7 @@ export const Register: React.FC = () => {
       setIsSuccess(true);
       navigate('/app/dashboard', { state: { successMessage: planMessage, tenantId: result.tenant_id } });
     } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.response?.data?.detail || err?.message;
-      setError(typeof msg === 'string' ? msg : 'Could not verify the code. Please try again.');
+      showRequestError(err, 'The code is invalid or expired. Request a new code and try again.');
     } finally {
       setOtpBusy(false);
     }
@@ -244,13 +268,6 @@ export const Register: React.FC = () => {
           Select your subscription tier below. Each tier includes automated vehicle telematics, role permissions, and operational dashboards.
         </p>
       </div>
-
-      {error && (
-        <div className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs text-red-400 flex items-center gap-2.5">
-          <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
-          <span>{typeof error === 'string' ? error : String(error)}</span>
-        </div>
-      )}
 
       {isSuccess && (
         <div className="mb-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-emerald-400 flex items-center gap-2.5 animate-pulse">
@@ -396,13 +413,14 @@ export const Register: React.FC = () => {
           <Input label="Verification code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required
             value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
             placeholder="000000" />
+          {renderFeedback()}
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button type="submit" className="flex-1" isLoading={otpBusy || isLoading}>Verify email and create workspace</Button>
             <button type="button" className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800"
               disabled={otpBusy} onClick={async () => {
-                setError(null); setOtpBusy(true);
-                try { await authApi.requestRegistrationOtp({ company_name: companyName.trim(), first_name: firstName.trim() || 'Admin', last_name: lastName.trim() || 'User', email: email.trim(), phone: phone.trim(), password, package_tier: selectedTier }); setSuccessMessage(`A new code was sent to ${email.trim()}.`); }
-                catch (err: any) { setError(err?.response?.data?.message || 'Could not resend the code yet.'); }
+                setError(null); setWarning(null); setOtpBusy(true);
+                try { await authApi.requestRegistrationOtp({ company_name: companyName.trim(), first_name: firstName.trim() || 'Admin', last_name: lastName.trim() || 'User', email: email.trim(), phone: phone.trim(), password, package_tier: selectedTier }); setSuccessMessage('If this email can be registered, a new code will arrive shortly.'); }
+                catch (err: any) { showRequestError(err, 'Could not resend the code. Please try again shortly.'); }
                 finally { setOtpBusy(false); }
               }}>Resend code</button>
           </div>
@@ -486,6 +504,7 @@ export const Register: React.FC = () => {
         </div>
 
         {/* 5. SUBMIT BUTTON WITH ACTIVE PLAN SUMMARY */}
+        {renderFeedback()}
         <div className="pt-2">
           <Button
             type="submit"
