@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { authApi } from '../../api/auth.api';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import {
@@ -25,7 +26,7 @@ export const Register: React.FC = () => {
   const [searchParams] = useSearchParams();
   const initialTierParam = (searchParams.get('tier') as PackageTier) || 'standard';
 
-  const { register, isLoading } = useAuth();
+  const { login, isLoading } = useAuth();
 
   const [selectedTier, setSelectedTier] = useState<PackageTier>(
     initialTierParam === 'basic' || initialTierParam === 'enterprise' ? initialTierParam : 'standard'
@@ -43,6 +44,9 @@ export const Register: React.FC = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [showRegistration, setShowRegistration] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpBusy, setOtpBusy] = useState(false);
   const registrationFormRef = useRef<HTMLFormElement>(null);
 
   const choosePlanAndContinue = (tier: PackageTier) => {
@@ -164,10 +168,7 @@ export const Register: React.FC = () => {
     }
 
     try {
-      localStorage.setItem('omni_org_owner_email', email.trim().toLowerCase());
-      localStorage.setItem('omni_registered_company', companyName.trim());
-
-      const registration = await register({
+      await authApi.requestRegistrationOtp({
         company_name: companyName.trim(),
         first_name: firstName.trim() || 'Admin',
         last_name: lastName.trim() || 'User',
@@ -177,22 +178,8 @@ export const Register: React.FC = () => {
         is_super_admin: true,
         package_tier: selectedTier,
       });
-
-      const confirmedTier = registration.packageTier;
-      const planMessage = !registration.packageVerified
-        ? `Your organization was created, but we could not confirm the ${TIER_DISPLAY_NAMES[selectedTier]} package from the backend. Please check the subscription in your workspace.`
-        : confirmedTier !== selectedTier
-          ? `Your organization was created, but the backend assigned ${TIER_DISPLAY_NAMES[confirmedTier || 'standard']} instead of ${TIER_DISPLAY_NAMES[selectedTier]}.`
-          : `Welcome to OmniCore! ${companyName} is active on the ${TIER_DISPLAY_NAMES[confirmedTier || selectedTier]} plan.`;
-      setSuccessMessage(planMessage);
-      setIsSuccess(true);
-      setTimeout(() => {
-        navigate('/app/dashboard', {
-          state: {
-            successMessage: planMessage,
-          },
-        });
-      }, 500);
+      setOtpSent(true);
+      setSuccessMessage(`If ${email.trim()} can be registered, a six-digit verification code will arrive shortly. If you already have an account, sign in or reset your password.`);
     } catch (err: any) {
       let msg =
         err?.response?.data?.error?.message ||
@@ -203,6 +190,31 @@ export const Register: React.FC = () => {
         msg = msg?.message || msg?.detail || JSON.stringify(msg);
       }
       setError(typeof msg === 'string' ? msg : 'Registration failed. Please review your details and try again.');
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!/^\d{6}$/.test(otpCode)) {
+      setError('Enter the six-digit code sent to your email.');
+      return;
+    }
+    setOtpBusy(true);
+    try {
+      const result = await authApi.verifyRegistrationOtp(email, otpCode);
+      localStorage.setItem('omni_org_owner_email', email.trim().toLowerCase());
+      localStorage.setItem('omni_registered_company', companyName.trim());
+      await login({ email: email.trim().toLowerCase(), password });
+      const planMessage = `Welcome to OmniCore! ${companyName} is active on the ${TIER_DISPLAY_NAMES[selectedTier]} plan.`;
+      setSuccessMessage(planMessage);
+      setIsSuccess(true);
+      navigate('/app/dashboard', { state: { successMessage: planMessage, tenantId: result.tenant_id } });
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.response?.data?.detail || err?.message;
+      setError(typeof msg === 'string' ? msg : 'Could not verify the code. Please try again.');
+    } finally {
+      setOtpBusy(false);
     }
   };
 
@@ -374,7 +386,29 @@ export const Register: React.FC = () => {
       </section>
 
       {/* 4. ORGANIZATION AND CREDENTIALS FORM */}
-      {showRegistration && <form ref={registrationFormRef} id="registration-form" onSubmit={handleSubmit} className="scroll-mt-6 space-y-4">
+      {showRegistration && (otpSent ? (
+        <form ref={registrationFormRef} onSubmit={handleVerifyOtp} className="scroll-mt-6 space-y-4 rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">Email verification</span>
+            <h3 className="mt-1 text-xl font-bold text-white">Check your inbox</h3>
+            <p className="mt-2 text-sm text-slate-400">If this email is eligible for registration, enter the six-digit code here. Codes expire after 10 minutes. Existing account? <Link to="/auth/login" className="text-cyan-300 hover:text-white">Sign in</Link>.</p>
+          </div>
+          <Input label="Verification code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required
+            value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            placeholder="000000" />
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button type="submit" className="flex-1" isLoading={otpBusy || isLoading}>Verify email and create workspace</Button>
+            <button type="button" className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800"
+              disabled={otpBusy} onClick={async () => {
+                setError(null); setOtpBusy(true);
+                try { await authApi.requestRegistrationOtp({ company_name: companyName.trim(), first_name: firstName.trim() || 'Admin', last_name: lastName.trim() || 'User', email: email.trim(), phone: phone.trim(), password, package_tier: selectedTier }); setSuccessMessage(`A new code was sent to ${email.trim()}.`); }
+                catch (err: any) { setError(err?.response?.data?.message || 'Could not resend the code yet.'); }
+                finally { setOtpBusy(false); }
+              }}>Resend code</button>
+          </div>
+          <button type="button" className="text-sm text-cyan-300 hover:text-white" onClick={() => { setOtpSent(false); setOtpCode(''); setSuccessMessage(''); }}>Back to registration details</button>
+        </form>
+      ) : <form ref={registrationFormRef} id="registration-form" onSubmit={handleSubmit} className="scroll-mt-6 space-y-4">
         <div className="pb-1">
           <button type="button" onClick={() => setShowRegistration(false)} className="mb-4 text-sm font-medium text-cyan-300 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 rounded">
             ← Back to plans
@@ -466,7 +500,7 @@ export const Register: React.FC = () => {
             By registering, you agree to the OmniCore Master Services Agreement and Privacy Policy.
           </p>
         </div>
-      </form>}
+      </form>)}
 
       {/* 6. SIGN IN FOOTER */}
       <div className="mt-6 pt-4 border-t border-slate-800 text-center">

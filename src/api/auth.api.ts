@@ -35,7 +35,7 @@ const toPackageTier = (value: unknown): PackageTier | undefined => {
 };
 
 export const authApi = {
-  register: async (payload: RegisterPayload): Promise<AuthResponse> => {
+  requestRegistrationOtp: async (payload: RegisterPayload): Promise<void> => {
     const body = {
       company_name: payload.company_name,
       admin_email: payload.email.trim().toLowerCase(),
@@ -47,15 +47,14 @@ export const authApi = {
       billing_cycle: 'MONTHLY',
       vertical_codes: payload.package_tier === 'enterprise' ? ['all_verticals'] : ['freight_logistics'],
     };
+    await apiClient.post('/auth/registration/request-otp/', body);
+  },
 
-    // Public onboarding endpoint provisions the tenant and initial tenant admin.
-    const provisionResponse = await apiClient.post<any>('/platform/tenants/provision/', body);
-    const provisionedTenantId = provisionResponse.data?.tenant_id;
-    // Provisioning does not issue JWTs, so sign in through the canonical auth endpoint.
-    return authApi.login(
-      { email: payload.email.trim().toLowerCase(), password: payload.password },
-      provisionedTenantId
-    );
+  verifyRegistrationOtp: async (email: string, code: string): Promise<{ tenant_id: string }> => {
+    const response = await apiClient.post<any>('/auth/registration/verify-otp/', {
+      email: email.trim().toLowerCase(), code: code.trim(),
+    });
+    return response.data?.data || response.data;
   },
 
   login: async (credentials: LoginCredentials, preferredTenantId?: string): Promise<AuthResponse> => {

@@ -104,12 +104,13 @@ apiClient.interceptors.request.use(
       config.headers.delete('Content-Type');
     }
 
-    const token = tokenStorage.getAccessToken();
+    const isPublicRegistrationRequest = Boolean(config.url?.includes('/auth/registration/'));
+    const token = isPublicRegistrationRequest ? null : tokenStorage.getAccessToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    const tenantId = tenantStorage.getActiveTenantId();
+    const tenantId = isPublicRegistrationRequest ? null : tenantStorage.getActiveTenantId();
     if (tenantId && config.headers && !config.headers['X-Tenant-ID']) {
       config.headers['X-Tenant-ID'] = tenantId;
     }
@@ -158,7 +159,8 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     // Check if error is 401 Unauthorized and not already retried
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+    const isPublicRegistrationRequest = Boolean(originalRequest?.url?.includes('/auth/registration/'));
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isPublicRegistrationRequest) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
