@@ -47,6 +47,7 @@ export const Register: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [showRegistration, setShowRegistration] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
+  const [isRequestingOtp, setIsRequestingOtp] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpBusy, setOtpBusy] = useState(false);
   const registrationFormRef = useRef<HTMLFormElement>(null);
@@ -199,6 +200,7 @@ export const Register: React.FC = () => {
       return;
     }
 
+    setIsRequestingOtp(true);
     try {
       await authApi.requestRegistrationOtp({
         company_name: companyName.trim(),
@@ -214,6 +216,8 @@ export const Register: React.FC = () => {
       setSuccessMessage(`If ${email.trim()} can be registered, a six-digit verification code will arrive shortly. If you already have an account, sign in or reset your password.`);
     } catch (err: any) {
       showRequestError(err, 'Some registration details are invalid. Check your entries and try again.');
+    } finally {
+      setIsRequestingOtp(false);
     }
   };
 
@@ -507,7 +511,7 @@ export const Register: React.FC = () => {
           <Button
             type="submit"
             className="w-full py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 font-bold shadow-xl shadow-blue-600/30 text-sm cursor-pointer"
-            isLoading={isLoading}
+            isLoading={isRequestingOtp}
             rightIcon={<ArrowRight className="h-4 w-4" />}
           >
             Launch Organization on {currentPlan.name} ({formatCurrency(activePrice)}/mo)
