@@ -10,6 +10,7 @@ import { useTenant } from '../../contexts/TenantContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Modal } from '../../components/common/Modal';
 import { Input } from '../../components/common/Input';
+import { PhoneNumberInput } from '../../components/common/PhoneNumberInput';
 import { Select } from '../../components/common/Select';
 import { Users, Plus, Lock, Mail, Copy, Check, ShieldCheck } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../lib/utils';
@@ -256,7 +257,7 @@ export const HrHub: React.FC = () => {
               <Input label="First Name" autoComplete="given-name" required value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
               <Input label="Last Name" autoComplete="family-name" required value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
               <Input label="Work Email" type="email" autoComplete="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-              <Input label="Phone" type="tel" autoComplete="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <PhoneNumberInput label="Phone" autoComplete="tel-national" value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
               <Select label="Department" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} options={[
                 { value: 'OPERATIONS', label: 'Operations' }, { value: 'HR', label: 'HR' },
                 { value: 'FINANCE', label: 'Finance' }, { value: 'FLEET', label: 'Fleet' },

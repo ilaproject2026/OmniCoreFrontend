@@ -4,9 +4,10 @@ import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { PhoneNumberInput } from '../../components/common/PhoneNumberInput';
 import { Select } from '../../components/common/Select';
 import { Tabs } from '../../components/common/Tabs';
-import { ADDONS, VERTICALS, PACKAGES } from '../../config/constants';
+import { ADDONS, VERTICALS, PACKAGES, TIER_RANK } from '../../config/constants';
 import { PackageTier, AddonKey, VerticalType } from '../../types';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -120,7 +121,7 @@ export const TenantSettings: React.FC = () => {
             <Input label="Company Name" value={profile.company_name} onChange={(e) => setProfile({ ...profile, company_name: e.target.value })} required />
             <Input label="Subdomain / Slug" value={`${tenant.slug}.omnicore.io`} readOnly />
             <Input label="Contact Email" type="email" value={profile.email} onChange={(e) => setProfile({ ...profile, email: e.target.value })} required />
-            <Input label="Contact Phone" value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} />
+            <PhoneNumberInput label="Contact Phone" value={profile.phone} onChange={(phone) => setProfile({ ...profile, phone })} />
             <Input label="Headquarters Address" value={profile.address} onChange={(e) => setProfile({ ...profile, address: e.target.value })} />
           </div>
           <div className="flex justify-end pt-2">
@@ -159,7 +160,9 @@ export const TenantSettings: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
-              {(['basic', 'standard', 'corporate', 'enterprise'] as PackageTier[]).map((tier) => {
+              {(['basic', 'standard', 'corporate', 'enterprise'] as PackageTier[])
+                .filter((tier) => TIER_RANK[tier] >= TIER_RANK[packageTier])
+                .map((tier) => {
                 const isSelected = packageTier === tier;
                 const pkg = PACKAGES[tier];
 
@@ -184,7 +187,7 @@ export const TenantSettings: React.FC = () => {
                     </div>
                   </div>
                 );
-              })}
+                })}
             </div>
           </Card>
 

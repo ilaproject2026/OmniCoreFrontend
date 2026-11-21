@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { PhoneNumberInput } from '../../components/common/PhoneNumberInput';
 import { Select } from '../../components/common/Select';
 import { Badge } from '../../components/common/Badge';
 
@@ -294,12 +295,11 @@ export const PublicBooking: React.FC = () => {
                 value={form.senderName}
                 onChange={(e) => setForm({ ...form, senderName: e.target.value })}
               />
-              <Input
+              <PhoneNumberInput
                 label="Contact Phone Number"
                 required
-                placeholder="+1 555-0199"
                 value={form.senderPhone}
-                onChange={(e) => setForm({ ...form, senderPhone: e.target.value })}
+                onChange={(senderPhone) => setForm({ ...form, senderPhone })}
               />
             </div>
             <Input label="Pickup Address / Departure Location" required placeholder="Street address, dock or station"
@@ -325,12 +325,11 @@ export const PublicBooking: React.FC = () => {
                 value={form.receiverName}
                 onChange={(e) => setForm({ ...form, receiverName: e.target.value })}
               />
-              <Input
+              <PhoneNumberInput
                 label="Recipient Phone"
                 required
-                placeholder="+1 555-9082"
                 value={form.receiverPhone}
-                onChange={(e) => setForm({ ...form, receiverPhone: e.target.value })}
+                onChange={(receiverPhone) => setForm({ ...form, receiverPhone })}
               />
             </div>
             <Input label="Dropoff / Delivery Address" required placeholder="Delivery destination address"

@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTenant } from '../../contexts/TenantContext';
-import { PackageTier, AddonKey } from '../../types';
-import { PACKAGES, ADDONS } from '../../config/constants';
+import { PackageTier } from '../../types';
+import { PACKAGES, TIER_RANK } from '../../config/constants';
 import { Modal } from '../../components/common/Modal';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
-import { Check, Sparkles, Zap, ArrowUpRight } from 'lucide-react';
+import { Check, Zap } from 'lucide-react';
 
 interface PackageUpgradeModalProps {
   isOpen: boolean;
@@ -18,33 +18,29 @@ export const PackageUpgradeModal: React.FC<PackageUpgradeModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { tenant, packageTier, enabledAddons, upgradePackage } = useTenant();
+  const { packageTier, enabledAddons, upgradePackage } = useTenant();
   const [selectedTier, setSelectedTier] = useState<PackageTier>(packageTier);
-  const [selectedAddons, setSelectedAddons] = useState<AddonKey[]>(enabledAddons);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  const tiers = useMemo(
+    () => (['basic', 'standard', 'corporate', 'enterprise'] as PackageTier[])
+      .filter((tier) => TIER_RANK[tier] > TIER_RANK[packageTier]),
+    [packageTier]
+  );
+
   useEffect(() => {
     if (isOpen) {
-      setSelectedTier(packageTier);
-      setSelectedAddons(enabledAddons);
+      setSelectedTier(tiers[0] ?? packageTier);
       setErrorMessage('');
     }
-  }, [isOpen, packageTier, enabledAddons]);
-
-  const tiers: PackageTier[] = ['basic', 'standard', 'corporate', 'enterprise'];
-
-  const handleToggleAddon = (key: AddonKey) => {
-    setSelectedAddons((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    );
-  };
+  }, [isOpen, packageTier, tiers]);
 
   const handleUpgrade = async () => {
     setIsSubmitting(true);
     setErrorMessage('');
     try {
-      await upgradePackage(selectedTier, selectedAddons);
+      await upgradePackage(selectedTier, enabledAddons);
       if (onSuccess) onSuccess();
       onClose();
     } catch (err: any) {
@@ -72,7 +68,7 @@ export const PackageUpgradeModal: React.FC<PackageUpgradeModalProps> = ({
         </p>
 
         {/* Tier Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+        {tiers.length > 0 ? <div className={`grid grid-cols-1 sm:grid-cols-2 ${tiers.length > 2 ? 'md:grid-cols-3' : ''} gap-3`}>
           {tiers.map((t) => {
             const def = PACKAGES[t];
             const isCurrent = t === packageTier;
@@ -117,40 +113,7 @@ export const PackageUpgradeModal: React.FC<PackageUpgradeModalProps> = ({
               </div>
             );
           })}
-        </div>
-
-        {/* Add-ons selection */}
-        <div>
-          <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-            Optional Operational Add-ons
-          </h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {ADDONS.map((addon) => {
-              const isChecked = selectedAddons.includes(addon.key as AddonKey);
-              return (
-                <div
-                  key={addon.key}
-                  onClick={() => handleToggleAddon(addon.key as AddonKey)}
-                  className={`p-2.5 rounded-lg border cursor-pointer text-xs transition-colors flex items-center justify-between ${
-                    isChecked
-                      ? 'border-emerald-500/50 bg-emerald-950/20 text-emerald-200'
-                      : 'border-slate-800 bg-slate-900/40 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <div className="min-w-0 pr-2">
-                    <span className="font-semibold block truncate">{addon.name}</span>
-                    <span className="text-[10px] font-mono text-slate-500">+${addon.monthlyPrice}/mo</span>
-                  </div>
-                  <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
-                    isChecked ? 'border-emerald-500 bg-emerald-500 text-black' : 'border-slate-700'
-                  }`}>
-                    {isChecked && <Check className="h-3 w-3" />}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        </div> : <p className="rounded-lg border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-400">Your organization is already on the highest available plan.</p>}
 
         {/* Bottom confirmation */}
         <div className="p-4 rounded-xl border border-blue-500/20 bg-blue-950/20 flex items-center justify-between">
@@ -166,6 +129,7 @@ export const PackageUpgradeModal: React.FC<PackageUpgradeModalProps> = ({
               variant="primary"
               onClick={handleUpgrade}
               isLoading={isSubmitting}
+              disabled={tiers.length === 0}
               icon={<Zap className="h-4 w-4" />}
             >
               Confirm Instant Upgrade
